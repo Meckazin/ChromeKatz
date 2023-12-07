@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\base">
+      <UniqueIdentifier>{b74d73f4-acc9-410d-a627-90481555d13a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\base">
+      <UniqueIdentifier>{8fa0224c-f4ab-4998-991b-bf2b56db2848}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ChromeKatz">
+      <UniqueIdentifier>{ef7159b2-3e95-42cb-8f02-33d13f8342e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ChromeKatz">
+      <UniqueIdentifier>{49bf3db7-8ce7-4922-9ad1-944c03bc4419}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="FindChromeProcess.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="base\mock.cpp">
+      <Filter>Source Files\base</Filter>
+    </ClCompile>
+    <ClCompile Include="ChromeKatz\Process.cpp">
+      <Filter>Source Files\ChromeKatz</Filter>
+    </ClCompile>
+    <ClCompile Include="CookieKatzBOF.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ChromeKatz\Memory.cpp">
+      <Filter>Source Files\ChromeKatz</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="beacon.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="base\helpers.h">
+      <Filter>Header Files\base</Filter>
+    </ClInclude>
+    <ClInclude Include="base\mock.h">
+      <Filter>Header Files\base</Filter>
+    </ClInclude>
+    <ClInclude Include="beacon_user_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PEB.h">
+      <Filter>Header Files\ChromeKatz</Filter>
+    </ClInclude>
+    <ClInclude Include="DFR.h">
+      <Filter>Header Files\ChromeKatz</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Makefile" />
+    <None Include="packages.config" />
+  </ItemGroup>
+</Project>
