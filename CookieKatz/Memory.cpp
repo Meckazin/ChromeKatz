@@ -173,6 +173,19 @@ void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
         PrintErrorWithMessage(TEXT("Error reading first node"));
 }
 
+BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
+
+    for (size_t i = 0; i < num; ++i) {
+        if (searchPattern[i] == 0xAA)
+            continue;
+        if (source[i] != searchPattern[i]) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
 BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t& resultAddress) {
 
     SYSTEM_INFO systemInfo;
@@ -190,19 +203,22 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                 BYTE* buffer = new BYTE[memoryInfo.RegionSize];
                 SIZE_T bytesRead;
 
+                //Error code 299
+                //Only part of a ReadProcessMemory or WriteProcessMemory request was completed. 
+                //We are fine with that -- We were not fine with that
+                //if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead) || GetLastError() == 299) {
                 if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead)) {
                     for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
                         if (memcmp(buffer + i, pattern, patternSize) == 0) {
-                            if (hitcount > 0)
-                            {
+                            if(hitcount > 0) {
                                 resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
                                 uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
-#ifdef _DEBUG
+    #ifdef _DEBUG
                                 printf("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
                                     memoryInfo.AllocationBase,
                                     memoryInfo.BaseAddress,
                                     offset);
-#endif
+    #endif
                                 delete[] buffer;
                                 return TRUE;
                             }
@@ -226,5 +242,29 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
         }
     }
 
+    return FALSE;
+}
+
+BOOL FindDllPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t moduleAddr, DWORD moduleSize, uintptr_t& resultAddress)
+{
+    BYTE* buffer = new BYTE[moduleSize];
+    SIZE_T bytesRead;
+
+    BOOL result = ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(moduleAddr), buffer, moduleSize, &bytesRead);
+    DWORD error = GetLastError();
+
+    if (result || error == 299) { //It is fine if not all was read
+        for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
+            if (MyMemCmp(buffer + i, pattern, patternSize)) {
+                    resultAddress = moduleAddr + i;
+                    delete[] buffer;
+                    return TRUE;
+            }
+        }
+    }
+    else {
+        //This happens quite a lot, will not print these errors on release build
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("ReadProcessMemory failed\n"));
+    }
     return FALSE;
 }

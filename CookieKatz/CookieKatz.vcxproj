@@ -136,6 +136,7 @@
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Process.cpp" />
     <ClCompile Include="Tokens.cpp" />
+    <ClCompile Include="Version.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Helper.h" />
@@ -143,6 +144,7 @@
     <ClInclude Include="PEB.h" />
     <ClInclude Include="Process.h" />
     <ClInclude Include="Tokens.h" />
+    <ClInclude Include="Version.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

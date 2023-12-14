@@ -8,6 +8,7 @@
 #include <tlhelp32.h>
 #include <stdio.h>
 #include <psapi.h>
+#include <Shlwapi.h>
 
 typedef enum _PROCESSINFOCLASS {
     ProcessBasicInformation,
@@ -137,7 +138,7 @@ BOOL ReadPEBProcessParameters(HANDLE hProcess, PEB* peb, WCHAR** args) {
     return TRUE;
 }
 
-BOOL FindCorrectChromePID(DWORD* pid, HANDLE* hProcess)
+BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
 {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
@@ -162,7 +163,7 @@ BOOL FindCorrectChromePID(DWORD* pid, HANDLE* hProcess)
 
     do
     {
-        if (wcscmp(pe32.szExeFile,L"chrome.exe") == 0)
+        if (wcscmp(pe32.szExeFile, processName) == 0)
         {
             PEB peb = { 0 };
             HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
@@ -173,7 +174,7 @@ BOOL FindCorrectChromePID(DWORD* pid, HANDLE* hProcess)
                 {
                     if (wcsstr(commandLine, flags) != 0)
                     {
-                        printf("[+] Found Chrome process: %d\n", pe32.th32ProcessID);
+                        printf("[+] Found browser process: %d\n", pe32.th32ProcessID);
                         printf("    Process owner: ");
                         GetTokenUser(hHandle);
                         printf("\n\n");
@@ -196,7 +197,7 @@ BOOL FindCorrectChromePID(DWORD* pid, HANDLE* hProcess)
     return FALSE;
 }
 
-void FindAllSuitableProcesses()
+void FindAllSuitableProcesses(LPCWSTR processName)
 {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
@@ -221,7 +222,7 @@ void FindAllSuitableProcesses()
 
     do
     {
-        if (wcscmp(pe32.szExeFile, L"chrome.exe") == 0)
+        if (wcscmp(pe32.szExeFile, processName) == 0)
         {
             PEB peb = { 0 };
             HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
@@ -232,7 +233,7 @@ void FindAllSuitableProcesses()
                 {
                     if (wcsstr(commandLine, flags) != 0)
                     {
-                        printf("[+] Found Chrome process: %d\n", pe32.th32ProcessID);
+                        printf("[+] Found browser process: %d\n", pe32.th32ProcessID);
                         printf("    Process owner: ");
                         GetTokenUser(hHandle);
                         printf("\n\n");
@@ -248,7 +249,7 @@ void FindAllSuitableProcesses()
     CloseHandle(hProcessSnap);
 }
 
-BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress) {
+BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
 
     HMODULE hModules[1024];
     DWORD cbNeeded;
@@ -271,9 +272,46 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
                 return FALSE;
             }
             baseAddress = reinterpret_cast<uintptr_t>(moduleInfo.lpBaseOfDll);
+            *moduleSize = moduleInfo.SizeOfImage;
             return TRUE;
         }
     }
 
     return FALSE;
+}
+
+BOOL GetProcessName(HANDLE hProcess, BOOL &chrome) {
+
+    wchar_t processPath[MAX_PATH];
+    DWORD size = sizeof(processPath) / sizeof(processPath[0]);
+
+    // Query the full process image name
+    if (!QueryFullProcessImageName(hProcess, 0, processPath, &size)) {
+        DebugPrintErrorWithMessage(TEXT("QueryFullProcessImageName failed to get target process name"));
+        return FALSE;
+    }
+
+    const wchar_t* executableName = PathFindFileName(processPath);
+    if (wcscmp(executableName, L"chrome.exe") == 0)
+    {
+        chrome = TRUE; 
+        return TRUE;
+    }
+    if (wcscmp(executableName, L"msedge.exe") == 0)
+    {
+        chrome = FALSE;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess) {
+    HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    if (hHandle == NULL || hHandle == INVALID_HANDLE_VALUE)
+    {
+        DebugPrintErrorWithMessage(TEXT("OpenProcess failed"));
+        return FALSE;
+    }
+    *hProcess = hHandle;
+    return TRUE;
 }
