@@ -18,8 +18,9 @@
  *                  BeaconDataStoreUnprotectItem, and BeaconDataStoreMaxEntries
  *    9/01/2023: Added BeaconGetCustomUserData API for 4.9
  */
-#pragma once
+
 /* data API */
+#pragma once
 typedef struct {
 	char * original; /* the original buffer [so we can free it] */
 	char * buffer;   /* current pointer into our buffer */

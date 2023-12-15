@@ -37,10 +37,10 @@ void usage() {
 Tested on
 Edge:
     Version 118.0.2088.46 (Official build) (64-bit)
+    Version 119.0.2151.97 (Official build) (64-bit)
     Version 120.0.2210.61 (Official build) (64-bit)
 Chrome:
     Version 117.0.5938.152 (Official build) (64-bit)
-    Version 120.0.6099.71 (Official Build) (64-bit)
     Version 120.0.6099.109 (Official Build) (64-bit)
     Version 120.0.6099.110 (Official Build) (64-bit)
 */
@@ -48,7 +48,7 @@ Chrome:
 #pragma comment(lib,"shlwapi.lib")
 int main(int argc, char* argv[]) {
     banner();
-	printf("Kittens love cookies too! >:3\n\n");
+	printf("Kittens love cookies too!\n\n");
 
     BOOL chrome = TRUE;
     BOOL ProcessList = FALSE;

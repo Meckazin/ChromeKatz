@@ -23,13 +23,17 @@ extern "C" {
 
     //This is important!
     void banner() {
-        BeaconPrintf(CALLBACK_OUTPUT, " _____             _    _      _   __      _       \n");
-        BeaconPrintf(CALLBACK_OUTPUT, "/  __ \\           | |  (_)    | | / /     | |      \n");
-        BeaconPrintf(CALLBACK_OUTPUT, "| /  \\/ ___   ___ | | ___  ___| |/ /  __ _| |_ ____\n");
-        BeaconPrintf(CALLBACK_OUTPUT, "| |    / _ \\ / _ \\| |/ / |/ _ \\    \\ / _` | __|_  /\n");
-        BeaconPrintf(CALLBACK_OUTPUT, "| \\__/\\ (_) | (_) |   <| |  __/ |\\  \\ (_| | |_ / / \n");
-        BeaconPrintf(CALLBACK_OUTPUT, " \\____/\\___/ \\___/|_|\\_\\_|\\___\\_| \\_/\\__,_|\\__/___|\n");
-        BeaconPrintf(CALLBACK_OUTPUT, "By Meckazin                      github.com/Meckazin \n");
+        formatp buffer;
+        BeaconFormatAlloc(&buffer, 512);
+        BeaconFormatPrintf(&buffer, " _____             _    _      _   __      _       \n");
+        BeaconFormatPrintf(&buffer, "/  __ \\           | |  (_)    | | / /     | |      \n");
+        BeaconFormatPrintf(&buffer, "| /  \\/ ___   ___ | | ___  ___| |/ /  __ _| |_ ____\n");
+        BeaconFormatPrintf(&buffer, "| |    / _ \\ / _ \\| |/ / |/ _ \\    \\ / _` | __|_  /\n");
+        BeaconFormatPrintf(&buffer, "| \\__/\\ (_) | (_) |   <| |  __/ |\\  \\ (_| | |_ / / \n");
+        BeaconFormatPrintf(&buffer, " \\____/\\___/ \\___/|_|\\_\\_|\\___\\_| \\_/\\__,_|\\__/___|\n");
+        BeaconFormatPrintf(&buffer, "By Meckazin                      github.com/Meckazin \n");
+        BeaconPrintf(CALLBACK_OUTPUT, "%s\n", BeaconFormatToString(&buffer, NULL));
+        BeaconFormatFree(&buffer);
     };
 
     void ConvertToByteArray(uintptr_t value, BYTE* byteArray, size_t size) {

