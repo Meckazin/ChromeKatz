@@ -167,7 +167,7 @@ void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
     printf("[*] Number of available cookies: %zu\n\n", cookieMap.size);
     // Process the first node in the binary search tree
     Node firstNode;
-    if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr))
+    if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
         ProcessNode(hProcess, firstNode);
     else
         PrintErrorWithMessage(TEXT("Error reading first node"));
@@ -186,7 +186,7 @@ BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
     return TRUE;
 }
 
-BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t& resultAddress) {
+BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t* cookieMonsterInstances, size_t& szCookieMonster) {
 
     SYSTEM_INFO systemInfo;
     GetSystemInfo(&systemInfo);
@@ -196,7 +196,6 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
 
     MEMORY_BASIC_INFORMATION memoryInfo;
 
-    int hitcount = 0;
     while (startAddress < endAddress) {
         if (VirtualQueryEx(hProcess, reinterpret_cast<LPCVOID>(startAddress), &memoryInfo, sizeof(memoryInfo)) == sizeof(memoryInfo)) {
             if (memoryInfo.State == MEM_COMMIT && (memoryInfo.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)) != 0) {
@@ -210,19 +209,16 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                 if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead)) {
                     for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
                         if (memcmp(buffer + i, pattern, patternSize) == 0) {
-                            if(hitcount > 0) {
-                                resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
-                                uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
-    #ifdef _DEBUG
-                                printf("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
-                                    memoryInfo.AllocationBase,
-                                    memoryInfo.BaseAddress,
-                                    offset);
-    #endif
-                                delete[] buffer;
-                                return TRUE;
-                            }
-                            hitcount++;
+                            uintptr_t resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
+                            uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
+#ifdef _DEBUG
+                            printf("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
+                                memoryInfo.AllocationBase,
+                                memoryInfo.BaseAddress,
+                                offset);
+#endif
+                            cookieMonsterInstances[szCookieMonster] = resultAddress;
+                            szCookieMonster++;
                         }
                     }
                 }
@@ -241,7 +237,8 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
             break;  // VirtualQueryEx failed
         }
     }
-
+    if (szCookieMonster > 0)
+        return TRUE;
     return FALSE;
 }
 

