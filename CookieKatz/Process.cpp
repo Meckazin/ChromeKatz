@@ -257,6 +257,7 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
 
     if (hModules == 0 || !EnumProcessModulesEx(hProcess, hModules, szModules, &cbNeeded, LIST_MODULES_ALL)) {
         DebugPrintErrorWithMessage(TEXT("EnumProcessModulesEx failed"));
+        free(hModules);
         return FALSE;
     }
 
@@ -270,14 +271,16 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
             MODULEINFO moduleInfo;
             if (!GetModuleInformation(hProcess, hModules[i], &moduleInfo, sizeof(moduleInfo))) {
                 DebugPrintErrorWithMessage(TEXT("GetModuleInformation failed"));
+                free(hModules);
                 return FALSE;
             }
             baseAddress = reinterpret_cast<uintptr_t>(moduleInfo.lpBaseOfDll);
             *moduleSize = moduleInfo.SizeOfImage;
+            free(hModules);
             return TRUE;
         }
     }
-
+    free(hModules);
     return FALSE;
 }
 

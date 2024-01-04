@@ -323,6 +323,7 @@ extern "C" {
         if (hModules == 0 || !K32EnumProcessModulesEx(hProcess, hModules, szModules, &cbNeeded, LIST_MODULES_ALL))
         {
             BeaconPrintf(CALLBACK_ERROR, "K32EnumProcessModulesEx failed! Error: %i\n", GetLastError());
+            free(hModules);
             return FALSE;
         }
 
@@ -337,12 +338,14 @@ extern "C" {
                 if (K32GetModuleInformation(hProcess, hModules[i], &moduleInfo, sizeof(moduleInfo))) {
                     baseAddress = reinterpret_cast<uintptr_t>(moduleInfo.lpBaseOfDll);
                     *moduleSize = moduleInfo.SizeOfImage;
+                    free(hModules);
                     return TRUE;
                 }
                 else
                     BeaconPrintf(CALLBACK_ERROR, "K32GetModuleInformation failed! Error: %i\n", GetLastError());
             }
         }
+        free(hModules);
         return FALSE;
     }
 
