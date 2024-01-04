@@ -251,10 +251,11 @@ void FindAllSuitableProcesses(LPCWSTR processName)
 
 BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
 
-    HMODULE hModules[1024];
+    size_t szModules = sizeof(HMODULE) * 1024; //Should be enough ;)
+    HMODULE* hModules = (HMODULE*)malloc(szModules);
     DWORD cbNeeded;
 
-    if (!EnumProcessModulesEx(hProcess, hModules, sizeof(hModules), &cbNeeded, LIST_MODULES_ALL)) {
+    if (hModules == 0 || !EnumProcessModulesEx(hProcess, hModules, szModules, &cbNeeded, LIST_MODULES_ALL)) {
         DebugPrintErrorWithMessage(TEXT("EnumProcessModulesEx failed"));
         return FALSE;
     }

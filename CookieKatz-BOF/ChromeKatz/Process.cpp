@@ -317,9 +317,10 @@ extern "C" {
 
     BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
 
-        HMODULE hModules[256]; //256 seems to be safe maximum in a BOF file (When initialized like so)
+        size_t szModules = sizeof(HMODULE) * 1024; //Should be enough ;)
+        HMODULE* hModules = (HMODULE*)malloc(szModules);
         DWORD cbNeeded;
-        if (!K32EnumProcessModulesEx(hProcess, hModules, sizeof(hModules), &cbNeeded, LIST_MODULES_ALL))
+        if (hModules == 0 || !K32EnumProcessModulesEx(hProcess, hModules, szModules, &cbNeeded, LIST_MODULES_ALL))
         {
             BeaconPrintf(CALLBACK_ERROR, "K32EnumProcessModulesEx failed! Error: %i\n", GetLastError());
             return FALSE;
