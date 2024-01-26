@@ -164,13 +164,20 @@ void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
     printf("Size of the cookie map: %zu\n", cookieMap.size);
 #endif // _DEBUG
 
-    printf("[*] Number of available cookies: %zu\n\n", cookieMap.size);
+    printf("[*] Number of available cookies: %zu\n", cookieMap.size);
+
+    if (cookieMap.firstNode == 0) //CookieMap was empty
+    {
+        printf("[*] This Cookie map was empty\n");
+        return;
+    }
+
     // Process the first node in the binary search tree
     Node firstNode;
     if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
         ProcessNode(hProcess, firstNode);
     else
-        PrintErrorWithMessage(TEXT("Error reading first node"));
+        PrintErrorWithMessage(TEXT("Error reading first node\n"));
 }
 
 BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
