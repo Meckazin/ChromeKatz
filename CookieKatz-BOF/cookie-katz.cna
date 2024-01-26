@@ -3,7 +3,7 @@ debug(7); # Show all warnings
 beacon_command_register(
    "cookie-katz",
    "Dump cookies from Chrome or Edge",
-   "Dump cookies from Chrome or Edge\n\nUse: [chrome|edge] [pid]"
+   "Dump cookies from Chrome or Edge\n\nUse: cookie-katz [chrome|edge] [pid]"
 );
 
 alias cookie-katz {
