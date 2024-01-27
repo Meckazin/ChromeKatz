@@ -80,7 +80,7 @@ extern "C" {
 
 #define MAX_NAME 256 //Maximum name length for GetTokenUser. Don't know what the MS specification actually is
 
-    BOOL GetTokenUser(IN HANDLE hProcess) {
+    BOOL GetTokenUser(IN HANDLE hProcess, wchar_t* UserName, wchar_t* DomainName, DWORD dwMaxUserName, DWORD dwMaxDomainName) {
 
         HANDLE hToken = NULL;
         if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken))
@@ -100,6 +100,9 @@ extern "C" {
             }
         }
         hTokenUser = (PTOKEN_USER)malloc(dwSize);
+        if (hTokenUser == NULL) {
+            return FALSE;
+        }
 
         if (!GetTokenInformation(hToken, TokenUser, hTokenUser, dwSize, &dwSize)) {
             BeaconPrintf(CALLBACK_ERROR, "Failed to retrieve token information! Error: %i\n", GetLastError());
@@ -107,26 +110,14 @@ extern "C" {
             return FALSE;
         }
 
-        if (hTokenUser == NULL) {
-            free(hTokenUser);
-            return FALSE;
-        }
-
-        wchar_t UserName[MAX_NAME];
         UserName[0] = L'\0';
-        wchar_t DomainName[MAX_NAME];
         DomainName[0] = L'\0';
-
-        DWORD dwMaxUserName = MAX_NAME;
-        DWORD dwMaxDomainName = MAX_NAME;
         SID_NAME_USE SidUser = SidTypeUser;
         if (!LookupAccountSidW(NULL, hTokenUser->User.Sid, UserName, &dwMaxUserName, DomainName, &dwMaxDomainName, &SidUser)) {
             BeaconPrintf(CALLBACK_ERROR, "LookupAccountSidW failed! Error: %i\n", GetLastError());
             free(hTokenUser);
             return FALSE;
         }
-
-        BeaconPrintf(CALLBACK_OUTPUT, "    For user: %ls\\%ls\n", DomainName, UserName);
 
         free(hTokenUser);
         return TRUE;
@@ -245,8 +236,16 @@ extern "C" {
                     {
                         if (CustomWcsStr(commandLine, flags) != 0)
                         {
-                            BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d\n", pe32.th32ProcessID);
-                            GetTokenUser(hHandle);
+                            wchar_t UserName[MAX_NAME];
+                            wchar_t DomainName[MAX_NAME];
+                            if (GetTokenUser(hHandle, UserName, DomainName, MAX_NAME, MAX_NAME))
+                            {
+                                BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d (%ls\\%ls)\n", pe32.th32ProcessID, DomainName, UserName);
+                            }
+                            else
+                            {
+                                BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d\n", pe32.th32ProcessID);
+                            }
                         }
                     }
                     free(commandLine);
@@ -294,8 +293,16 @@ extern "C" {
                     {
                         if (CustomWcsStr(commandLine, flags) != 0)
                         {
-                            BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d\n", pe32.th32ProcessID);
-                            GetTokenUser(hHandle);
+                            wchar_t UserName[MAX_NAME];
+                            wchar_t DomainName[MAX_NAME];
+                            if (GetTokenUser(hHandle, UserName, DomainName, MAX_NAME, MAX_NAME))
+                            {
+                                BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d (%ls\\%ls)\n", pe32.th32ProcessID, DomainName, UserName);
+                            }
+                            else
+                            {
+                                BeaconPrintf(CALLBACK_OUTPUT, "Found browser process: %d\n", pe32.th32ProcessID);
+                            }
 
                             *pid = pe32.th32ProcessID;
                             *hProcess = hHandle;
