@@ -22,11 +22,15 @@ jobs:
       - name: build
         run: |
           cd CookieKatz-BOF && nmake all
+      - name: ZipIt
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          path: 'x64/Release/'
+          filename: 'CookieKatzBOF.zip'
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        #if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            CookieKatz-BOF/cookie-katz.cna
-            x64/Release/FindChromeProcess.x64.o
-            x64/Release/CookieKatzBOF.x64.o
+            x64/Release/CookieKatzBOF.zip
