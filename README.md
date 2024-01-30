@@ -23,7 +23,7 @@ Download the latest release build of the CookieKatz-BOF [here](https://github.co
 ### Build your own
 You may build both projects on Visual Studio with Release or Debug configuration and x64 platform. 
 
-BOF version has been developed with Cobalt Strike's Visual Studio template [bof-vs](https://github.com/Cobalt-Strike/bof-vs). This means that Debug configuration for the CookieKatz-BOF will generate an exe instead of the COFF file. You can read more about the use of the Visual Studio template [here](https://www.cobaltstrike.com/blog/simplifying-bof-development). When rebuilding the BOF after making code changes, use **Clean** command before building to ensure that all changes are included in the build.
+BOF version has been developed with Cobalt Strike's Visual Studio template [bof-vs](https://github.com/Cobalt-Strike/bof-vs). This means that Debug configuration for the CookieKatz-BOF will generate an exe instead of the COFF file. You can read more about the use of the Visual Studio template [here](https://www.cobaltstrike.com/blog/simplifying-bof-development).
 
 You can compile your own BOF with nmake in **x64 Native Tools Command Prompt for VS 2022**:
 ```text
