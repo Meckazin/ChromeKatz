@@ -26,7 +26,7 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
-          path: 'x64/Release/'
+          directory: 'x64/Release/'
           filename: 'CookieKatzBOF.zip'
       - name: Release
         uses: softprops/action-gh-release@v1
