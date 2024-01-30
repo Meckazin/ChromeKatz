@@ -28,5 +28,5 @@ jobs:
         with:
           files: |
             CookieKatz-BOF/cookie-katz.cna
-            CookieKatz-BOF/x64/Release/FindChromeProcess.x64.o
-            CookieKatz-BOF/x64/Release/CookieKatzBOF.x64.o
+            x64/Release/FindChromeProcess.x64.o
+            x64/Release/CookieKatzBOF.x64.o
