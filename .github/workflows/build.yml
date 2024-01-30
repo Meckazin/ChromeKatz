@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
       - name: build
         run: |
-          cd CookieKatz-BOF && nmake all
+          pwd && cd CookieKatz-BOF && nmake all && dir /s
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
