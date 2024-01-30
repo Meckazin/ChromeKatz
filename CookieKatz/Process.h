@@ -7,3 +7,4 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
 
 BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess);
 BOOL GetProcessName(HANDLE hProcess, BOOL& chrome);
+BOOL IsWow64(HANDLE hProcess);

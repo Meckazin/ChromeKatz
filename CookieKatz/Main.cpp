@@ -50,6 +50,11 @@ int main(int argc, char* argv[]) {
     banner();
 	printf("Kittens love cookies too!\n\n");
 
+#ifndef _WIN64
+    printf("[-] 32bit version is not currently supported.\n");
+    return 1;
+#endif // !_WIN64
+
     BOOL chrome = TRUE;
     BOOL ProcessList = FALSE;
     DWORD pid = 0;
@@ -95,6 +100,12 @@ int main(int argc, char* argv[]) {
         if (!GetProcessName(hChrome, chrome))
         {
             printf("[-] Failed to get process handle to PID: %lu\n", pid);
+            return 1;
+        }
+
+        if (IsWow64(hChrome))
+        {
+            printf("[-] Target process is 32bit. Only 64bit browsers are supported!\n");
             return 1;
         }
     }
@@ -149,6 +160,12 @@ int main(int argc, char* argv[]) {
         if (!FindCorrectProcessPID(processName, &pid, &hChrome) || hChrome == NULL)
         {
             printf("[-] Failed to find right process\n");
+            return 1;
+        }
+
+        if (IsWow64(hChrome))
+        {
+            printf("[-] Target process is 32bit. Only 64bit browsers are supported!\n");
             return 1;
         }
     }

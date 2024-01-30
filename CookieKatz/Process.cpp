@@ -319,3 +319,19 @@ BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess) {
     *hProcess = hHandle;
     return TRUE;
 }
+
+BOOL IsWow64(HANDLE hProcess) {
+    BOOL isBrowserWow64 = FALSE;
+    if (!IsWow64Process(hProcess, &isBrowserWow64)) {
+        DebugPrintErrorWithMessage(TEXT("IsWow64Process failed for browser process"));
+        CloseHandle(hProcess);
+        return TRUE;
+    }
+    if (isBrowserWow64) {
+        DebugPrint(TEXT("[-] Target process is 32bit. Only 64bit browsers are supported!"));
+        CloseHandle(hProcess);
+        return TRUE;
+    }
+
+    return FALSE;
+}

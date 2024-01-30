@@ -43,6 +43,11 @@ extern "C" {
         banner();
         BeaconPrintf(CALLBACK_OUTPUT, "Kittens love cookies too! >:3\n\n");
 
+#ifndef _WIN64
+        BeaconPrintf(CALLBACK_OUTPUT, "32bit version is not currently supported.\n");
+        return 1;
+#endif // !_WIN64
+
         datap parser;
         BeaconDataParse(&parser, args, len);
         if (parser.original == 0)

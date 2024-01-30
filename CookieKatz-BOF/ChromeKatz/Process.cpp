@@ -365,4 +365,19 @@ extern "C" {
         }
         return TRUE;
     }
+
+    BOOL IsWow64(HANDLE hProcess) {
+        BOOL isBrowserWow64 = FALSE;
+        if (!IsWow64Process(hProcess, &isBrowserWow64)) {
+            BeaconPrintf(CALLBACK_ERROR, "IsWow64Process failed for browser process, Error: %i\n", GetLastError());
+            CloseHandle(hProcess);
+            return TRUE;
+        }
+        if (isBrowserWow64) {
+            CloseHandle(hProcess);
+            return TRUE;
+        }
+
+        return FALSE;
+    }
 }

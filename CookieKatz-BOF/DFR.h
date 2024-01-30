@@ -35,6 +35,9 @@ DFR(KERNEL32, K32GetModuleBaseNameW)
 DFR(KERNEL32, K32GetModuleInformation)
 #define K32GetModuleInformation KERNEL32$K32GetModuleInformation
 
+DFR(KERNEL32, IsWow64Process)
+#define IsWow64Process KERNEL32$IsWow64Process
+
 DFR(MSVCRT, memcpy)
 #define memcpy MSVCRT$memcpy
 DFR(MSVCRT, malloc)
