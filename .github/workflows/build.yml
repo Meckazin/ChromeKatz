@@ -27,6 +27,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            cookie-katz.cna
-            CookieKatzBOF.x64.o
-            FindChromeProcess.x64.o
+            CookieKatz-BOF/cookie-katz.cna
+            CookieKatz-BOF/x64/Release/FindChromeProcess.x64.o
+            CookieKatz-BOF/x64/Release/CookieKatzBOF.x64.o
