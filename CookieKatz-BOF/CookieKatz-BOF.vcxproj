@@ -106,8 +106,8 @@
     <NMakeCleanCommandLine>nmake clean</NMakeCleanCommandLine>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <NMakeBuildCommandLine>nmake all</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>nmake /B all</NMakeReBuildCommandLine>
+    <NMakeBuildCommandLine>nmake clean &amp;&amp; nmake all</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>nmake clean &amp;&amp; nmake /B all</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>nmake clean</NMakeCleanCommandLine>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -121,8 +121,8 @@
     <NMakeCleanCommandLine>nmake clean</NMakeCleanCommandLine>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <NMakeBuildCommandLine>nmake all-debug</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>nmake /B all-debug</NMakeReBuildCommandLine>
+    <NMakeBuildCommandLine>nmake clean &amp;&amp; nmake all-debug</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>nmake clean &amp;&amp; nmake /B all-debug</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>nmake clean</NMakeCleanCommandLine>
     <IncludePath>$(MSBuildProjectDirectory)\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1.7\build\native\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
