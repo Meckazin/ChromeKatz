@@ -1,0 +1,32 @@
+on:
+  push:
+    tags:
+      - "*"
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "main"
+
+name: build
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Requirements
+        run: |
+          sudo apt update
+          sudo apt -y install make mingw-w64
+      - name: build
+        run: |
+          make all
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            cookie-katz.cna
+            CookieKatzBOF.x64.o
+            FindChromeProcess.x64.o
