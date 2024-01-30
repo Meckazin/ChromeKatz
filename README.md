@@ -1,18 +1,34 @@
 # Cookie dumper for Chrome and Edge
 
 CookieKatz is a project that allows operators to dump cookies from Chrome or Edge directly from the process memory.
-Chromium based browsers load all their cookies from the on-disk cookie database on startup. This allows the dumping of the cookies from the browser memory without need to touch the on-disk database.
+Chromium based browsers load all their cookies from the on-disk cookie database on startup. 
 
-The benefits of this solution over other tools are:
- - No need to touch on-disk database file
- - DPAPI keys not needed to access the cookies
- - Dump cookies from other user's browsers when running elevated
- - Support dumping from Chrome's Incogntio and Edge's In-Private processes
+The benefits of this approach are:
+ 1. Support dumping cookies from Chrome's Incogntio and Edge's In-Private processes
+ 1. Access cookies of other user's browsers when running elevated
+ 1. No need to touch on-disk database file
+ 1. DPAPI keys not needed to decrypt the cookies
 
-On the negative side, even as the method of finding the correct offsets in memory currently is stable and works on multiple different Chrome versions, it will definitely break at some point in the future.
-32bit browsers are not supported and 32bit builds are not supported either.
+On the negative side, even as the method of finding the correct offsets in the memory are currently stable and work on multiple different versions, it will definitely break at some point in the future.
+32bit browser installations are not supported and 32bit builds of CookieKatz are not supported either.
 
-This solution consists of two projects, CookieKatz that is a PE executable, and CookieKatz-BOF that is a Beacon Object File version.
+Currently only regular cookies are dumped. Chromium stores [Partitioned Cookies](https://developers.google.com/privacy-sandbox/3pcd/chips) in a different place and they are currently not included in the dump.
+
+This solution consists of two projects, **CookieKatz** that is a PE executable, and **CookieKatz-BOF** that is a Beacon Object File version.
+
+## Build and Install
+
+Download the latest release build of the CookieKatz-BOF [here](https://github.com/Meckazin/ChromeKatz/releases/latest).
+
+### Build your own
+You may build both projects on Visual Studio with Release or Debug configuration and x64 platform. 
+
+BOF version has been developed with Cobalt Strike's Visual Studio template [bof-vs](https://github.com/Cobalt-Strike/bof-vs). This means that Debug configuration for the CookieKatz-BOF will generate an exe instead of the COFF file. You can read more about the use of the Visual Studio template [here](https://www.cobaltstrike.com/blog/simplifying-bof-development). When rebuilding the BOF after making code changes, use **Clean** command before building to ensure that all changes are included in the build.
+
+You can compile your own BOF with nmake in **x64 Native Tools Command Prompt for VS 2022**:
+```text
+nmake all
+```
 
 ## Usage
 
