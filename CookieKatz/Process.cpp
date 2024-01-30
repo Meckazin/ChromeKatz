@@ -328,7 +328,6 @@ BOOL IsWow64(HANDLE hProcess) {
         return TRUE;
     }
     if (isBrowserWow64) {
-        DebugPrint(TEXT("[-] Target process is 32bit. Only 64bit browsers are supported!"));
         CloseHandle(hProcess);
         return TRUE;
     }
