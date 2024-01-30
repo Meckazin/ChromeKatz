@@ -14,7 +14,8 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
       - name: build
         run: |
           cd CookieKatz-BOF && nmake all
