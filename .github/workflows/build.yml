@@ -28,7 +28,7 @@ jobs:
           type: 'zip'
           directory: 'x64/Release/'
           filename: 'CookieKatzBOF.zip'
-          command: 'cp ..\..\CookieKatz-BOF\cookie-katz.cna .\'
+          command: 'cp ../../CookieKatz-BOF/cookie-katz.cna ./'
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
