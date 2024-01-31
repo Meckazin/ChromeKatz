@@ -19,6 +19,7 @@ This solution consists of two projects, **CookieKatz** that is a PE executable, 
 ## Build and Install
 
 Download the latest release build of the CookieKatz-BOF [here](https://github.com/Meckazin/ChromeKatz/releases/latest).
+Zip file includes compiled BOFs and the CNA script to run them.
 
 ### Build your own
 You may build both projects on Visual Studio with Release or Debug configuration and x64 platform. 
