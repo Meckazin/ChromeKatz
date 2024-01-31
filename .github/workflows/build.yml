@@ -26,7 +26,7 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
-          directory: 'x64/Release/'
+          path: './x64'
           filename: 'CookieKatzBOF.zip'
           command: 'cp CookieKatz-BOF/cookie-katz.cna x64/Release/'
       - name: Release
