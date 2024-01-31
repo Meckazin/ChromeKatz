@@ -26,9 +26,9 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
-          path: './x64'
+          path: '@zip.lst'
           filename: 'CookieKatzBOF.zip'
-          command: 'cp CookieKatz-BOF/cookie-katz.cna x64/Release/'
+          command: 'echo .\CookieKatz-BOF\cookie-katz.cna >> zip.lst && echo .\x64\ >> zip.lst'
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
