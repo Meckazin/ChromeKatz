@@ -1,11 +1,12 @@
 # Cookie dumper for Chrome and Edge
 
-CookieKatz is a project that allows operators to dump cookies from Chrome or Edge directly from the process memory.
+CookieKatz is a project that allows operators to dump cookies from Chrome, Edge or Msedgewebview2 directly from the process memory.
 Chromium based browsers load all their cookies from the on-disk cookie database on startup. 
 
 The benefits of this approach are:
  1. Support dumping cookies from Chrome's Incogntio and Edge's In-Private processes
  1. Access cookies of other user's browsers when running elevated
+ 1. Dump cookies from webview processes
  1. No need to touch on-disk database file
  1. DPAPI keys not needed to decrypt the cookies
 
@@ -43,13 +44,18 @@ Examples:
 .\CookieKatz.exe /edge
     Targets first available Edge process
 .\CookieKatz.exe /pid:<pid>
-    Attempts to target given pid (remember to use flag: edge if the target is Edge)
+    Attempts to target given pid, expecting it to be Chrome
+.\CookieKatz.exe /webview /pid:<pid>
+    Targets the given msedgewebview2 process
+.\CookieKatz.exe /list /webview
+    Lists available webview processes
 
 Flags:
-    /edge    Target current user Edge process
-    /pid     Attempt to dump given pid, for example, someone else's if running elevated
-    /list    List targettable processes, use with /edge to target Edge
-    /help    This what you just did! -h works as well
+    /edge       Target current user Edge process
+    /webview    Target current user Msedgewebview2 process
+    /pid        Attempt to dump given pid, for example, someone else's if running elevated
+    /list       List targettable processes, use with /edge or /webview to target other browsers
+    /help       This what you just did! -h works as well
 ```
 
 ### CookieKatz-BOF
@@ -57,11 +63,11 @@ Flags:
 ```text
 beacon> help cookie-katz
 Dump cookies from Chrome or Edge
-Use: cookie-katz [chrome|edge] [pid]
+Use: cookie-katz [chrome|edge|webview] [pid]
 
 beacon> help cookie-katz-find
 Find processes for Cookie-Katz
-Use: cookie-katz-find [chrome|edge]
+Use: cookie-katz-find [chrome|edge|webview]
 ```
 
 ## Credits

@@ -6,5 +6,5 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess);
 BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize);
 
 BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess);
-BOOL GetProcessName(HANDLE hProcess, BOOL& chrome);
+BOOL GetProcessName(HANDLE hProcess, Browser& targetBrowser);
 BOOL IsWow64(HANDLE hProcess);

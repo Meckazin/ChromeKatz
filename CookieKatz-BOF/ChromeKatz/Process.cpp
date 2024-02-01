@@ -80,6 +80,21 @@ extern "C" {
 
 #define MAX_NAME 256 //Maximum name length for GetTokenUser. Don't know what the MS specification actually is
 
+    BOOL IsWow64(HANDLE hProcess) {
+        BOOL isBrowserWow64 = FALSE;
+        if (!IsWow64Process(hProcess, &isBrowserWow64)) {
+            BeaconPrintf(CALLBACK_ERROR, "IsWow64Process failed for browser process, Error: %i\n", GetLastError());
+            CloseHandle(hProcess);
+            return TRUE;
+        }
+        if (isBrowserWow64) {
+            CloseHandle(hProcess);
+            return TRUE;
+        }
+
+        return FALSE;
+    }
+
     BOOL GetTokenUser(IN HANDLE hProcess, wchar_t* UserName, wchar_t* DomainName, DWORD dwMaxUserName, DWORD dwMaxDomainName) {
 
         HANDLE hToken = NULL;
@@ -286,6 +301,11 @@ extern "C" {
             {
                 PEB peb = { 0 };
                 HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
+                if (IsWow64(hHandle))
+                {
+                    BeaconPrintf(CALLBACK_ERROR, "Target process is 32bit. Only 64bit browsers are supported!\n");
+                    return FALSE;
+                }
                 if (ReadRemoteProcessPEB(hHandle, &peb))
                 {
                     WCHAR* commandLine{ 0 };
@@ -363,21 +383,11 @@ extern "C" {
             BeaconPrintf(CALLBACK_ERROR, "Failed to OpenProcess PID:%d, Error: %i\n", pid, GetLastError());
             return FALSE;
         }
+        if (IsWow64(*hProcess))
+        {
+            BeaconPrintf(CALLBACK_ERROR, "Target process is 32bit. Only 64bit browsers are supported!\n");
+            return FALSE;
+        }
         return TRUE;
-    }
-
-    BOOL IsWow64(HANDLE hProcess) {
-        BOOL isBrowserWow64 = FALSE;
-        if (!IsWow64Process(hProcess, &isBrowserWow64)) {
-            BeaconPrintf(CALLBACK_ERROR, "IsWow64Process failed for browser process, Error: %i\n", GetLastError());
-            CloseHandle(hProcess);
-            return TRUE;
-        }
-        if (isBrowserWow64) {
-            CloseHandle(hProcess);
-            return TRUE;
-        }
-
-        return FALSE;
     }
 }

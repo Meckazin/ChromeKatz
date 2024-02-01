@@ -284,7 +284,7 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
     return FALSE;
 }
 
-BOOL GetProcessName(HANDLE hProcess, BOOL &chrome) {
+BOOL GetProcessName(HANDLE hProcess, Browser &targetBrowser) {
 
     wchar_t processPath[MAX_PATH];
     DWORD size = sizeof(processPath) / sizeof(processPath[0]);
@@ -298,12 +298,17 @@ BOOL GetProcessName(HANDLE hProcess, BOOL &chrome) {
     const wchar_t* executableName = PathFindFileName(processPath);
     if (wcscmp(executableName, L"chrome.exe") == 0)
     {
-        chrome = TRUE; 
+        targetBrowser = Chrome;
         return TRUE;
     }
     if (wcscmp(executableName, L"msedge.exe") == 0)
     {
-        chrome = FALSE;
+        targetBrowser = Msedge;
+        return TRUE;
+    }
+    if (wcscmp(executableName, L"msedgewebview2.exe") == 0)
+    {
+        targetBrowser = Msedgewebview2;
         return TRUE;
     }
     return FALSE;
