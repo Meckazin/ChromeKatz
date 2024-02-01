@@ -26,12 +26,12 @@ jobs:
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
-          directory: 'x64/Release/'
+          path: '@zip.lst'
           filename: 'CookieKatzBOF.zip'
-          command: 'copy ..\..\CookieKatz-BOF\cookie-katz.cna .\'
+          command: 'echo ./CookieKatz-BOF/cookie-katz.cna >> zip.lst && echo ./x64/ >> zip.lst'
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            x64/Release/CookieKatzBOF.zip
+            CookieKatzBOF.zip
