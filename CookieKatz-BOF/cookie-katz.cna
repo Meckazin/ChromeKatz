@@ -37,7 +37,7 @@ alias cookie-katz {
     }
 
     # Read the BOF
-    $path = getFileProper(script_resource(""), "..", x64", "Release", "CookieKatzBOF.x64.o");
+    $path = getFileProper(script_resource(""), "..", "x64", "Release", "CookieKatzBOF.x64.o");
     if (!-isFile $path) {
         berror($1, "$path does not exist");
         return;
