@@ -72,7 +72,7 @@ alias cookie-katz-find {
     }
 
     # Read the BOF
-    $path = getFileProper(script_resource(""), "..", "x64", "Release", "FindChromeProcess.x64.o");
+    $path = getFileProper(script_resource(""), "x64", "Release", "FindChromeProcess.x64.o");
     if (!-isFile $path) {
         berror($1, "$path does not exist");
         return;
