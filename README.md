@@ -9,13 +9,14 @@ The benefits of this approach are:
  1. Dump cookies from webview processes
  1. No need to touch on-disk database file
  1. DPAPI keys not needed to decrypt the cookies
+ 1. Parse cookies offline from a minidump file
 
 On the negative side, even as the method of finding the correct offsets in the memory are currently stable and work on multiple different versions, it will definitely break at some point in the future.
 32bit browser installations are not supported and 32bit builds of CookieKatz are not supported either.
 
 Currently only regular cookies are dumped. Chromium stores [Partitioned Cookies](https://developers.google.com/privacy-sandbox/3pcd/chips) in a different place and they are currently not included in the dump.
 
-This solution consists of two projects, **CookieKatz** that is a PE executable, and **CookieKatz-BOF** that is a Beacon Object File version.
+This solution consists of three projects, **CookieKatz** that is a PE executable, **CookieKatz-BOF** that is a Beacon Object File version and **CookieKatzMinidump** which is the minidump parser.
 
 ## Build and Install
 
@@ -70,7 +71,21 @@ Find processes for Cookie-Katz
 Use: cookie-katz-find [chrome|edge|webview]
 ```
 
+### CookieKatzMinidump
+
+```text
+Usage:
+    CookieKatzMinidump.exe <Path_to_minidump_file>
+
+Example:
+    .\CookieKatzMinidump.exe .\msedge.DMP
+
+To target correct process for creating the minidump, you can use the following PowerShell command:
+    Get-WmiObject Win32_Process | where {$_.CommandLine -match 'network.mojom.NetworkService'} | select -Property Name,ProcessId
+```
+
 ## Credits
 - [Henkru](https://github.com/Henkru) for fixing the BOF version crashes and creating the CNA script
 - [B3arr0](https://github.com/B3arr0) for testing the BOF version and helping to squash the bugs
 - [TheWover](https://github.com/TheWover) for excellent PEB definitions!
+- [0vercl0k](https://github.com/0vercl0k) for creating udmp-parser which is the core library for minidump parsing
