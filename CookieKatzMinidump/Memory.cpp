@@ -17,18 +17,91 @@ struct RemoteString {
 	UCHAR strAlloc; //Seems to always be 0x80, honestly no idea what it should mean
 };
 
-struct CanonicalCookie {
+#pragma region Chrome
+enum class CookieSameSite {
+	UNSPECIFIED = -1,
+	NO_RESTRICTION = 0,
+	LAX_MODE = 1,
+	STRICT_MODE = 2,
+	// Reserved 3 (was EXTENDED_MODE), next number is 4.
+
+	// Keep last, used for histograms.
+	kMaxValue = STRICT_MODE
+};
+
+enum class CookieSourceScheme {
+	kUnset = 0,
+	kNonSecure = 1,
+	kSecure = 2,
+
+	kMaxValue = kSecure  // Keep as the last value.
+};
+
+enum CookiePriority {
+	COOKIE_PRIORITY_LOW = 0,
+	COOKIE_PRIORITY_MEDIUM = 1,
+	COOKIE_PRIORITY_HIGH = 2,
+	COOKIE_PRIORITY_DEFAULT = COOKIE_PRIORITY_MEDIUM
+};
+
+enum class CookieSourceType {
+	// 'unknown' is used for tests or cookies set before this field was added.
+	kUnknown = 0,
+	// 'http' is used for cookies set via HTTP Response Headers.
+	kHTTP = 1,
+	// 'script' is used for cookies set via document.cookie.
+	kScript = 2,
+	// 'other' is used for cookies set via browser login, iOS, WebView APIs,
+	// Extension APIs, or DevTools.
+	kOther = 3,
+
+	kMaxValue = kOther,  // Keep as the last value.
+};
+
+//There is now additional cookie type "CookieBase", but I'm not going to add that here yet
+struct CanonicalCookieChrome {
+	uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
 	OptimizedString name;
-	OptimizedString value;
 	OptimizedString domain;
 	OptimizedString path;
 	int64_t creation_date;
+	bool secure;
+	bool httponly;
+	CookieSameSite same_site;
+	char partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+	CookieSourceScheme source_scheme;
+	int source_port;    //Not implemented //End of Net::CookieBase
+	OptimizedString value;
 	int64_t expiry_date;
 	int64_t last_access_date;
 	int64_t last_update_date;
+	CookiePriority priority;       //Not implemented
+	CookieSourceType source_type;    //Not implemented
+};
+
+#pragma endregion
+
+#pragma region Edge
+struct CanonicalCookieEdge {
+	uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+	OptimizedString name;
+	OptimizedString domain;
+	OptimizedString path;
+	int64_t creation_date;
 	bool secure;
 	bool httponly;
+	CookieSameSite same_site;
+	char partition_key[128];  //Not implemented
+	CookieSourceScheme source_scheme;
+	int source_port;    //Not implemented //End of Net::CookieBase
+	OptimizedString value;
+	int64_t expiry_date;
+	int64_t last_access_date;
+	int64_t last_update_date;
+	CookiePriority priority;       //Not implemented
+	CookieSourceType source_type;    //Not implemented
 };
+#pragma endregion
 
 struct Node {
 	uintptr_t left;
@@ -202,12 +275,7 @@ void PrintTimeStamp(int64_t timeStamp) {
 		systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
 }
 
-void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr) {
-
-	CanonicalCookie cookie = { 0 };
-	if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookie)))
-		PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
-
+void PrintValuesEdge(CanonicalCookieEdge cookie, udmpparser::UserDumpParser& dump) {
 	printf("    Name: ");
 	ReadString(dump, cookie.name);
 	printf("    Value: ");
@@ -230,18 +298,62 @@ void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr) {
 	printf("\n");
 }
 
-void ProcessNode(udmpparser::UserDumpParser& dump, const Node& node) {
+void PrintValuesChrome(CanonicalCookieChrome cookie, udmpparser::UserDumpParser& dump) {
+	printf("    Name: ");
+	ReadString(dump, cookie.name);
+	printf("    Value: ");
+	ReadString(dump, cookie.value);
+	printf("    Domain: ");
+	ReadString(dump, cookie.domain);
+	printf("    Path: ");
+	ReadString(dump, cookie.path);
+	printf("    Creation time: ");
+	PrintTimeStamp(cookie.creation_date);
+	printf("    Expiration time: ");
+	PrintTimeStamp(cookie.expiry_date);
+	printf("    Last accessed: ");
+	PrintTimeStamp(cookie.last_access_date);
+	printf("    Last updated: ");
+	PrintTimeStamp(cookie.last_update_date);
+	printf("    Secure: %s\n", cookie.secure ? "True" : "False");
+	printf("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+
+	printf("\n");
+}
+
+void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr, bool isChrome) {
+
+	if (isChrome) {
+		CanonicalCookieChrome cookie = { 0 };
+		if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookieChrome))) {
+			PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+			return;
+		}
+		PrintValuesChrome(cookie, dump);
+
+	}
+	else {
+		CanonicalCookieEdge cookie = { 0 };
+		if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookieEdge))) {
+			PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+			return;
+		}
+		PrintValuesEdge(cookie, dump);
+	}
+}
+
+void ProcessNode(udmpparser::UserDumpParser& dump, const Node& node, bool isChrome) {
 	// Process the current node
 	printf("Cookie Key: ");
 	ReadString(dump, node.key);
 
-	ProcessNodeValue(dump, node.valueAddress);
+	ProcessNodeValue(dump, node.valueAddress, isChrome);
 
 	// Process the left child if it exists
 	if (node.left != 0) {
 		Node leftNode;
 		if (ReadDumpMemory(dump, node.left, &leftNode, sizeof(Node)))
-			ProcessNode(dump, leftNode);
+			ProcessNode(dump, leftNode, isChrome);
 		else
 			printf("Error reading left node");
 	}
@@ -250,13 +362,13 @@ void ProcessNode(udmpparser::UserDumpParser& dump, const Node& node) {
 	if (node.right != 0) {
 		Node rightNode;
 		if (ReadDumpMemory(dump, node.right, &rightNode, sizeof(Node)))
-			ProcessNode(dump, rightNode);
+			ProcessNode(dump, rightNode, isChrome);
 		else
 			printf("Error reading right node");
 	}
 }
 
-void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress) {
+void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress, bool isChrome) {
 
 	RootNode cookieMap;
 
@@ -275,7 +387,7 @@ void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress)
 	// Process the first node in the binary search tree
 	Node firstNode;
 	if (ReadDumpMemory(dump, cookieMap.firstNode, &firstNode, sizeof(Node)))
-		ProcessNode(dump, firstNode);
+		ProcessNode(dump, firstNode, isChrome);
 	else
 		printf("[-] Failed to read the first node from address: 0x%p\n", (void*)cookieMap.firstNode);
 

