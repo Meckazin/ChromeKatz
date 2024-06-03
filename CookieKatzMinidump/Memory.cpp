@@ -68,7 +68,7 @@ struct CanonicalCookieChrome {
 	bool secure;
 	bool httponly;
 	CookieSameSite same_site;
-	char partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+	char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
 	CookieSourceScheme source_scheme;
 	int source_port;    //Not implemented //End of Net::CookieBase
 	OptimizedString value;
@@ -91,7 +91,7 @@ struct CanonicalCookieEdge {
 	bool secure;
 	bool httponly;
 	CookieSameSite same_site;
-	char partition_key[128];  //Not implemented
+	char partition_key[136];  //Not implemented
 	CookieSourceScheme source_scheme;
 	int source_port;    //Not implemented //End of Net::CookieBase
 	OptimizedString value;
