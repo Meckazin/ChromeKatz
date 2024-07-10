@@ -21,17 +21,22 @@ jobs:
         uses: actions/checkout@v4
       - name: build
         run: |
+          mkdir release
           cd CookieKatz-BOF && nmake all
+          cd .. 
+          mv x64\Release\* release\
+          cd CredentialKatz-BOF && nmake all
+          cd .. 
+          mv x64\Release\* release\
       - name: ZipIt
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
           path: '@zip.lst'
-          filename: 'CookieKatzBOF.zip'
-          command: 'echo ./cookie-katz.cna >> zip.lst && echo ./x64/ >> zip.lst'
+          filename: 'ChromeKatzBOFs.zip'
+          command: 'echo ./chrome-katz.cna >> zip.lst && echo ./release/ >> zip.lst'
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: |
-            CookieKatzBOF.zip
+          files: ChromeKatzBOFs.zip

