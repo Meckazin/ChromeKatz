@@ -33,7 +33,7 @@ extern "C" {
         BeaconFormatPrintf(&buffer, "| |____| | |  __/ (_| |  __/ | | | |_| | (_| | | . \\ (_| | |_ / / \n");
         BeaconFormatPrintf(&buffer, " \\_____|_|  \\___|\\__,_|\\___|_| |_|\\__|_|\\__,_|_|_|\\_\\__,_|\\__/___|\n");
         BeaconFormatPrintf(&buffer, "By Meckazin                                  github.com / Meckazin \n");
-        BeaconPrintf(CALLBACK_OUTPUT, "%s\n", BeaconFormatToString(&buffer, &bufsize));
+        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(&buffer, &bufsize), bufsize);
         BeaconFormatFree(&buffer);
     };
 

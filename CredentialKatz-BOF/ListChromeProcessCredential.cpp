@@ -33,7 +33,7 @@ extern "C" {
         BeaconFormatPrintf(&buffer, "| |____| | |  __/ (_| |  __/ | | | |_| | (_| | | . \\ (_| | |_ / / \n");
         BeaconFormatPrintf(&buffer, " \\_____|_|  \\___|\\__,_|\\___|_| |_|\\__|_|\\__,_|_|_|\\_\\__,_|\\__/___|\n");
         BeaconFormatPrintf(&buffer, "By Meckazin                                  github.com / Meckazin \n");
-        BeaconPrintf(CALLBACK_OUTPUT, "%s\n", BeaconFormatToString(&buffer, &bufsize));
+        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(&buffer, &bufsize), bufsize);
         BeaconFormatFree(&buffer);
     };
 
@@ -53,7 +53,7 @@ extern "C" {
         BeaconDataParse(&parser, args, len);
         if (parser.original == 0)
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] Missing mandatory argument /chrome or /edge\n");
+            BeaconPrintf(CALLBACK_ERROR, "Missing mandatory argument /chrome or /edge\n");
             return;
         }
 
@@ -61,25 +61,25 @@ extern "C" {
         LPCWSTR processName;
         if (_stricmp(targetConfig, "/chrome") == 0)
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Chrome\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "Targeting Chrome\n");
             processName = L"chrome.exe";
         }
         else if (_stricmp(targetConfig, "/edge") == 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[*] Targeting Edge\n");
+            BeaconPrintf(CALLBACK_OUTPUT, "Targeting Edge\n");
             processName = L"msedge.exe";
         }
         else if (_stricmp(targetConfig, "/webview") == 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] msedgewebview2 is not currently supported!\n");
+            BeaconPrintf(CALLBACK_ERROR, "msedgewebview2 is not currently supported!\n");
             return;
         }
         else
         {
-            BeaconPrintf(CALLBACK_OUTPUT, "[-] No target type specified! Use /edge, /chrome or /webview to specify target!\n");
+            BeaconPrintf(CALLBACK_ERROR, "No target type specified! Use /edge, /chrome or /webview to specify target!\n");
             return;
         }
 
         FindAllSuitableProcesses(processName);
-        BeaconPrintf(CALLBACK_OUTPUT, "[*] Done\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "Done\n");
     }
 }
 
