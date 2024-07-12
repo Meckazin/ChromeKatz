@@ -5,7 +5,7 @@ As for now, ChromeKatz consists of two projects:
  1. CookieKatz - The cookie dumper
  2. CredentialKatz - The password dumper
 
-Both tools have an exe version and Beacon Object File version available. CookieKatz has an additional minidump parser for extracting cookies from a process dump.
+Both tools have an exe, Beacon Object File, and minidump parser available.
 
 ## CredentialKatz - Dump credential manager contents from memory
 
@@ -15,10 +15,10 @@ Most of the time Chromium based browsers keep your passwords in the credential m
 There are few perks in accessing credentials in this way.:
  1. Dump credentials of other user's browsers when running elevated
  2. DPAPI keys not needed to decrypt the credentials
- 3.  No need to touch on-disk database file
- 4.  ~~Parse cookies offline from a minidump file~~ <-- _TODO_
+ 3. No need to touch on-disk database file
+ 4. Parse credential manager offline from a minidump file
 
-This solution consists of three projects, **CredentialKatz** that is a PE executable, **CredentialKatz-BOF** that is a Beacon Object File version.
+This solution consists of three projects, **CredentialKatz** that is a PE executable, **CredentialKatz-BOF** the Beacon Object File version and **CredentialKatzMinidump** which is the minidump parser.
 
 ## Usage
 
@@ -54,6 +54,18 @@ Use: credential-katz [chrome|edge] [pid]
 beacon> help cookie-katz-find
 Find processes for credential-katz
 Use: credential-katz-find [chrome|edge]
+```
+
+### CredentialKatzMinidump
+
+```text
+Usage:
+    CredentialKatzMinidump.exe <Path_to_minidump_file>
+
+Example:
+    .\CredentialKatzMinidump.exe .\msedge.DMP
+
+You need to dump the Chrome/Edge main process. Hint: It is the one with the smallest PID
 ```
 
 ## CookieKatz - Dump cookies directly from memory
