@@ -1,9 +1,9 @@
 # ChromeKatz
 
-ChromeKatz is a solution for dumping sensitive information from Chromium based browsers' memory.
+ChromeKatz is a solution for dumping sensitive information from memory of Chromium based browsers.
 As for now, ChromeKatz consists of two projects:
  1. CookieKatz - The cookie dumper
- 2. CredentialKatz - credential manager dumper
+ 2. CredentialKatz - The password dumper
 
 Both tools have an exe version and Beacon Object File version available. CookieKatz has an additional minidump parser for extracting cookies from a process dump.
 

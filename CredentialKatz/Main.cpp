@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 #ifdef _DEBUG
-    wprintf(TEXT("[*] Found %zu instances of PasswordReuseDetector!\n"), szPasswordReuseDetectorInstances);
+    wprintf(TEXT("[*] Found %zu instances of CredentialMap!\n"), szPasswordReuseDetectorInstances);
 
     for (size_t i = 0; i < szPasswordReuseDetectorInstances; i++)
         wprintf(TEXT("[*] Found PasswordReuseDetector on 0x%p\n"), (void*)PasswordReuseDetectorInstances[i]);

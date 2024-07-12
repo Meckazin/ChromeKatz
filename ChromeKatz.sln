@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CredentialKatz", "Credentia
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CredentialKatz-BOF", "CredentialKatz-BOF\CredentialKatz-BOF.vcxproj", "{94BC8508-DDE9-4E97-96C1-E06476CF1212}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CredentialKatzMinidump", "CredentialKatzMinidump\CredentialKatzMinidump.vcxproj", "{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -83,6 +85,18 @@ Global
 		{94BC8508-DDE9-4E97-96C1-E06476CF1212}.UnitTest|x64.Build.0 = UnitTest|x64
 		{94BC8508-DDE9-4E97-96C1-E06476CF1212}.UnitTest|x86.ActiveCfg = UnitTest|Win32
 		{94BC8508-DDE9-4E97-96C1-E06476CF1212}.UnitTest|x86.Build.0 = UnitTest|Win32
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Debug|x64.ActiveCfg = Debug|x64
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Debug|x64.Build.0 = Debug|x64
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Debug|x86.ActiveCfg = Debug|Win32
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Debug|x86.Build.0 = Debug|Win32
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Release|x64.ActiveCfg = Release|x64
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Release|x64.Build.0 = Release|x64
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Release|x86.ActiveCfg = Release|Win32
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.Release|x86.Build.0 = Release|Win32
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.UnitTest|x64.ActiveCfg = Debug|x64
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.UnitTest|x64.Build.0 = Debug|x64
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.UnitTest|x86.ActiveCfg = Debug|Win32
+		{00A2BDB1-6AE1-4EF7-8886-E42B3193285C}.UnitTest|x86.Build.0 = Debug|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
