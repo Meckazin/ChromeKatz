@@ -13,8 +13,33 @@ on:
 
 name: build
 jobs:
+  bof-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: NoZuFormatter
+        run: |
+          cpp_files=$(find . -type f -wholename "*-BOF/*.cpp")
+          found=0
+          for file in $cpp_files; 
+          do
+              if grep -Hn "%zu" "$file"; 
+              then
+                  found=1
+              fi
+          done
+
+          if [ $found -eq 1 ]; 
+          then
+              echo "Found %zu in file. Beacon does not support this, change it to %Iu"
+              exit 1
+          else
+              exit 0
+          fi
   build:
     runs-on: windows-2022
+    needs: bof-lint
     steps:
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Checkout
