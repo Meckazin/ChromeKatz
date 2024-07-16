@@ -188,10 +188,10 @@ extern "C" {
 #ifdef _DEBUG
         BeaconPrintf(CALLBACK_OUTPUT, "Address of beginNode: 0x%p\n", (void*)credentialMap.beginNode);
         BeaconPrintf(CALLBACK_OUTPUT, "Address of firstNode: 0x%p\n", (void*)credentialMap.firstNode);
-        BeaconPrintf(CALLBACK_OUTPUT, "Size of the credential map: %zu\n", credentialMap.size);
+        BeaconPrintf(CALLBACK_OUTPUT, "Size of the credential map: %Iu\n", credentialMap.size);
 #endif // _DEBUG
 
-        BeaconPrintf(CALLBACK_OUTPUT, "Number of available credentials: %zu\n\n", credentialMap.size);
+        BeaconPrintf(CALLBACK_OUTPUT, "Number of available credentials: %Iu\n\n", credentialMap.size);
 
         if (credentialMap.firstNode == 0) //CookieMap was empty
         {
