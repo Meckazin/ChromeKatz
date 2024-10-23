@@ -189,10 +189,10 @@ void WalkCredentialMap(HANDLE hProcess, uintptr_t credentialMapAddress) {
 #ifdef _DEBUG
     printf("Address of beginNode: 0x%p\n", (void*)credentialMap.beginNode);
     printf("Address of firstNode: 0x%p\n", (void*)credentialMap.firstNode);
-    printf("Size of the credential map: %zu\n", credentialMap.size);
+    printf("Size of the credential map: %Iu\n", credentialMap.size);
 #endif // _DEBUG
 
-    printf("[*] Number of available credentials: %zu\n\n", credentialMap.size);
+    printf("[*] Number of available credentials: %Iu\n\n", credentialMap.size);
 
     if (credentialMap.firstNode == 0) //CookieMap was empty
     {

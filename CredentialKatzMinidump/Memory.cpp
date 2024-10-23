@@ -299,7 +299,7 @@ void WalkCredentialMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddr
 		return;
 
 	}
-	printf("[*] Number of available credentials: %zu\n\n", credentialMap.size);
+	printf("[*] Number of available credentials: %Iu\n\n", credentialMap.size);
 
 	// Process the first node in the binary search tree
 	Node firstNode;

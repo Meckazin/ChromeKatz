@@ -507,7 +507,7 @@ void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress,
 		return;
 
 	}
-	printf("[*] Number of available cookies: %zu\n\n", cookieMap.size);
+	printf("[*] Number of available cookies: %Iu\n\n", cookieMap.size);
 
 	// Process the first node in the binary search tree
 	Node firstNode;

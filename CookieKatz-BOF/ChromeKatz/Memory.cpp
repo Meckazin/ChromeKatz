@@ -359,10 +359,10 @@ void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, TargetVersion ta
 #ifdef _DEBUG
     PRINT("Address of beginNode: 0x%p\n", (void*)cookieMap.beginNode);
     PRINT("Address of firstNode: 0x%p\n", (void*)cookieMap.firstNode);
-    PRINT("Size of the cookie map: %zu\n", cookieMap.size);
+    PRINT("Size of the cookie map: %Iu\n", cookieMap.size);
 #endif // _DEBUG
 
-    PRINT("[*] Number of available cookies: %zu\n", cookieMap.size);
+    PRINT("[*] Number of available cookies: %Iu\n", cookieMap.size);
 
     if (cookieMap.firstNode == 0 || cookieMap.size == 0) //CookieMap was empty
     {
