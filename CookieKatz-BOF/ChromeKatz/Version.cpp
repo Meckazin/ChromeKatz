@@ -1,20 +1,16 @@
 #include <Windows.h>
 #include <Psapi.h>
 
-#include "Helper.h"
-#include "Version.h"
-
-#pragma comment(lib,"version.lib")
 BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion) {
 
     LPWSTR filePath = (wchar_t*)malloc(sizeof(wchar_t) * MAX_PATH);
-    if (filePath == NULL || GetModuleFileNameEx(hProcess, NULL, filePath, MAX_PATH) == 0) {
+    if (filePath == NULL || K32GetModuleFileNameExW(hProcess, NULL, filePath, MAX_PATH) == 0) {
         DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleFileNameEx failed"));
         free(filePath);
         return FALSE;
     }
     DWORD dwHandle;
-    DWORD dwSize = GetFileVersionInfoSize(filePath, &dwHandle);
+    DWORD dwSize = GetFileVersionInfoSizeW(filePath, &dwHandle);
     if (dwSize == 0) {
         DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetFileVersionInfoSize failed"));
         free(filePath);
@@ -22,7 +18,7 @@ BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion) {
     }
 
     BYTE* buffer = (BYTE*)malloc(dwSize);
-    if (buffer == nullptr || !GetFileVersionInfo(filePath, 0, dwSize, buffer)) {
+    if (buffer == nullptr || !GetFileVersionInfoW(filePath, 0, dwSize, buffer)) {
         DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetFileVersionInfo failed"));
         free(buffer);
         free(filePath);
@@ -45,7 +41,7 @@ BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion) {
         return FALSE;
     }
 
-    PRINT("[*] Browser Version: %hu.%hu.%hu.%hu\n\n",
+    PRINT("Browser Version: %hu.%hu.%hu.%hu\n",
         HIWORD(fileInfo->dwProductVersionMS),
         LOWORD(fileInfo->dwProductVersionMS),
         HIWORD(fileInfo->dwProductVersionLS),

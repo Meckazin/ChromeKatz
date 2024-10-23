@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "udmp-parser.h"
 #include "Helper.h"
+#include "Memory.h"
 
 #pragma region structs
 struct OptimizedString {
@@ -103,6 +104,40 @@ struct CanonicalCookieEdge {
 };
 #pragma endregion
 
+#pragma region OldVersions
+struct CanonicalCookieOld {
+	OptimizedString name;
+	OptimizedString value;
+	OptimizedString domain;
+	OptimizedString path;
+	int64_t creation_date;
+	int64_t expiry_date;
+	int64_t last_access_date;
+	int64_t last_update_date;
+};
+
+struct CanonicalCookie124 {
+	uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+	OptimizedString name;
+	OptimizedString domain;
+	OptimizedString path;
+	int64_t creation_date;
+	bool secure;
+	bool httponly;
+	CookieSameSite same_site;
+	BYTE partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+	CookieSourceScheme source_scheme;
+	int source_port;    //Not implemented //End of Net::CookieBase
+	OptimizedString value;
+	int64_t expiry_date;
+	int64_t last_access_date;
+	int64_t last_update_date;
+	CookiePriority priority;       //Not implemented
+	CookieSourceType source_type;    //Not implemented
+};
+#pragma endregion
+
+
 struct Node {
 	uintptr_t left;
 	uintptr_t right;
@@ -117,7 +152,7 @@ struct RootNode {
 	uintptr_t beginNode;
 	uintptr_t firstNode;
 	size_t size;
-};
+}; 
 #pragma endregion
 
 BOOL MyMemCmp(const BYTE* source, const BYTE* searchPattern, size_t num) {
@@ -144,51 +179,69 @@ BOOL PatternSearch(const BYTE* pattern, size_t patternSize, const uint8_t* sourc
 	return FALSE;
 }
 
-BOOL FindDLLPattern(udmpparser::UserDumpParser& dump, const char* dllName, const BYTE* pattern, size_t patternSize, uintptr_t& resultAddress) {
+BOOL FindLargestSection(udmpparser::UserDumpParser& dump, std::string moduleName, uintptr_t& resultAddress) {
+
+	SIZE_T largestRegion = 0;
 
 	for (const auto& [_, Descriptor] : dump.GetMem()) {
 		const char* State = StateToString(Descriptor.State);
+		const char* Type = TypeToString(Descriptor.Type);
 
-		if (strcmp(State, "MEM_FREE") == 0)
+		if (strcmp(State, "MEM_COMMIT") != 0)
+			continue;
+		if (strcmp(Type, "MEM_IMAGE") != 0)
+			continue;
+		if ((Descriptor.Protect & PAGE_READONLY) == 0)
+			continue;
+		if (Descriptor.DataSize == 0)
 			continue;
 
 		//Check if memory area is a module
 		const auto& Module = dump.GetModule(Descriptor.BaseAddress);
 
-		//This is a module if not nullptr
-		if (Module != nullptr) {
+		//Skip over other areas and modules
+		if (Module == nullptr || Module->ModuleName.find(moduleName) == std::string::npos)
+			continue;
 
-			const auto& ModulePathName = Module->ModuleName;
-			auto ModuleNameOffset = ModulePathName.find_last_of('\\');
-			if (ModuleNameOffset == ModulePathName.npos) {
-				ModuleNameOffset = 0;
-			}
-			else {
-				ModuleNameOffset++;
-			}
-
-
-			if (strcmp(&ModulePathName[ModuleNameOffset], dllName) == 0)
-			{
-				printf("[*] Found target module: %s\n", &ModulePathName[ModuleNameOffset]);
-
-				uintptr_t memoryOffset = 0;
-				if (PatternSearch(pattern, patternSize, Descriptor.Data, Module->SizeOfImage, memoryOffset)) {
-					resultAddress = Module->BaseOfImage + memoryOffset;
-					return TRUE;
-				}
-				else {
-					printf("[-] Failed to find the first pattern!\n");
-					return FALSE;
-				}
-				break;
-			}
+		if (Descriptor.RegionSize > largestRegion) {
+			largestRegion = Descriptor.RegionSize;
+			resultAddress = Descriptor.BaseAddress;
 		}
 	}
-
-	printf("[-] Failed to find the target module: %s\n", dllName);
+	if (largestRegion > 0)
+		return TRUE;
 
 	return FALSE;
+}
+
+void PatchPattern(BYTE* pattern, BYTE baseAddrPattern[], size_t offset) {
+	size_t szAddr = sizeof(uintptr_t) - 1;
+	for (offset -= 1; szAddr > 3; offset--) {
+		pattern[offset] = baseAddrPattern[szAddr];
+		szAddr--;
+	}
+}
+
+BYTE* PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAddress) {
+
+	//Copy the pattern
+	BYTE* newPattern = (BYTE*)malloc(sizeof(BYTE) * patternSize);
+	for (size_t i = 0; i < patternSize; i++)
+		newPattern[i] = pattern[i];
+
+	BYTE baseAddrPattern[sizeof(uintptr_t)];
+	ConvertToByteArray(baseAddress, baseAddrPattern, sizeof(uintptr_t));
+
+	PatchPattern(newPattern, baseAddrPattern, 16);
+	PatchPattern(newPattern, baseAddrPattern, 24);
+	PatchPattern(newPattern, baseAddrPattern, 56);
+	PatchPattern(newPattern, baseAddrPattern, 80);
+	PatchPattern(newPattern, baseAddrPattern, 136);
+	PatchPattern(newPattern, baseAddrPattern, 168);
+	PatchPattern(newPattern, baseAddrPattern, 176);
+	PatchPattern(newPattern, baseAddrPattern, 184);
+
+	return newPattern;
 }
 
 BOOL FindPattern(udmpparser::UserDumpParser& dump, const BYTE* pattern, size_t patternSize, uintptr_t* CookieMonsterInstances, size_t& instanceCount) {
@@ -199,22 +252,31 @@ BOOL FindPattern(udmpparser::UserDumpParser& dump, const BYTE* pattern, size_t p
 
 		if (strcmp(State, "MEM_COMMIT") != 0)
 			continue;
+		if (strcmp(Type, "MEM_PRIVATE") != 0)
+			continue;
+		if ((Descriptor.Protect & PAGE_READWRITE) == 0)
+			continue;
 		if (Descriptor.DataSize == 0)
 			continue;
 
-		//Check if memory area is a module
-		const auto& Module = dump.GetModule(Descriptor.BaseAddress);
-
-		//Skip over modules
-		if (Module != nullptr)
-			continue;
-
-		uintptr_t resultAddress = 0;
-		uintptr_t memoryOffset = 0;
+		BYTE* newPattern = PatchBaseAddress(pattern, patternSize, Descriptor.BaseAddress);
 
 		for (size_t i = 0; i <= Descriptor.DataSize - patternSize; ++i) {
-			if (MyMemCmp(Descriptor.Data + i, pattern, patternSize)) {
-				CookieMonsterInstances[instanceCount] = Descriptor.BaseAddress + i;
+			if (MyMemCmp(Descriptor.Data + i, newPattern, patternSize)) {
+				uintptr_t resultAddress = Descriptor.BaseAddress + i;
+				uintptr_t offset = resultAddress - Descriptor.BaseAddress;
+#ifdef _DEBUG
+				PRINT("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
+					(void*)Descriptor.AllocationBase,
+					(void*)Descriptor.BaseAddress,
+					offset);
+#endif
+				if (instanceCount >= 1000) {
+					free(newPattern);
+					return TRUE;
+				}
+
+				CookieMonsterInstances[instanceCount] = resultAddress;
 				instanceCount++;
 			}
 		}
@@ -321,9 +383,53 @@ void PrintValuesChrome(CanonicalCookieChrome cookie, udmpparser::UserDumpParser&
 	printf("\n");
 }
 
-void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr, bool isChrome) {
+void PrintValuesChrome(CanonicalCookie124 cookie, udmpparser::UserDumpParser& dump) {
+	PRINT("    Name: ");
+	ReadString(dump, cookie.name);
+	PRINT("    Value: ");
+	ReadString(dump, cookie.value);
+	PRINT("    Domain: ");
+	ReadString(dump, cookie.domain);
+	PRINT("    Path: ");
+	ReadString(dump, cookie.path);
+	PRINT("    Creation time: ");
+	PrintTimeStamp(cookie.creation_date);
+	PRINT("    Expiration time: ");
+	PrintTimeStamp(cookie.expiry_date);
+	PRINT("    Last accessed: ");
+	PrintTimeStamp(cookie.last_access_date);
+	PRINT("    Last updated: ");
+	PrintTimeStamp(cookie.last_update_date);
+	PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+	PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-	if (isChrome) {
+	PRINT("\n");
+}
+
+void PrintValuesOld(CanonicalCookieOld cookie, udmpparser::UserDumpParser& dump) {
+	PRINT("    Name: ");
+	ReadString(dump, cookie.name);
+	PRINT("    Value: ");
+	ReadString(dump, cookie.value);
+	PRINT("    Domain: ");
+	ReadString(dump, cookie.domain);
+	PRINT("    Path: ");
+	ReadString(dump, cookie.path);
+	PRINT("    Creation time: ");
+	PrintTimeStamp(cookie.creation_date);
+	PRINT("    Expiration time: ");
+	PrintTimeStamp(cookie.expiry_date);
+	PRINT("    Last accessed: ");
+	PrintTimeStamp(cookie.last_access_date);
+	PRINT("    Last updated: ");
+	PrintTimeStamp(cookie.last_update_date);
+
+	PRINT("\n");
+}
+
+void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr, TargetVersion targetConfig) {
+
+	if (targetConfig == Chrome) {
 		CanonicalCookieChrome cookie = { 0 };
 		if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookieChrome))) {
 			PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
@@ -332,7 +438,7 @@ void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr, boo
 		PrintValuesChrome(cookie, dump);
 
 	}
-	else {
+	else if (targetConfig == Edge) {
 		CanonicalCookieEdge cookie = { 0 };
 		if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookieEdge))) {
 			PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
@@ -340,20 +446,39 @@ void ProcessNodeValue(udmpparser::UserDumpParser& dump, uintptr_t Valueaddr, boo
 		}
 		PrintValuesEdge(cookie, dump);
 	}
+	else if (targetConfig == OldChrome) {
+		CanonicalCookieOld cookie = { 0 };
+		if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookieOld))) {
+			PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+			return;
+		}
+		PrintValuesOld(cookie, dump);
+	}
+	else if (targetConfig == Chrome124) {
+		CanonicalCookie124 cookie = { 0 };
+		if (!ReadDumpMemory(dump, Valueaddr, &cookie, sizeof(CanonicalCookie124))) {
+			PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+			return;
+		}
+		PrintValuesChrome(cookie, dump);
+	}
+	else {
+		PRINT("[-] Could not read cookie values: Unknown configuration %d", targetConfig);
+	}
 }
 
-void ProcessNode(udmpparser::UserDumpParser& dump, const Node& node, bool isChrome) {
+void ProcessNode(udmpparser::UserDumpParser& dump, const Node& node, TargetVersion targetConfig) {
 	// Process the current node
 	printf("Cookie Key: ");
 	ReadString(dump, node.key);
 
-	ProcessNodeValue(dump, node.valueAddress, isChrome);
+	ProcessNodeValue(dump, node.valueAddress, targetConfig);
 
 	// Process the left child if it exists
 	if (node.left != 0) {
 		Node leftNode;
 		if (ReadDumpMemory(dump, node.left, &leftNode, sizeof(Node)))
-			ProcessNode(dump, leftNode, isChrome);
+			ProcessNode(dump, leftNode, targetConfig);
 		else
 			printf("Error reading left node");
 	}
@@ -362,13 +487,13 @@ void ProcessNode(udmpparser::UserDumpParser& dump, const Node& node, bool isChro
 	if (node.right != 0) {
 		Node rightNode;
 		if (ReadDumpMemory(dump, node.right, &rightNode, sizeof(Node)))
-			ProcessNode(dump, rightNode, isChrome);
+			ProcessNode(dump, rightNode, targetConfig);
 		else
 			printf("Error reading right node");
 	}
 }
 
-void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress, bool isChrome) {
+void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress, TargetVersion targetConfig) {
 
 	RootNode cookieMap;
 
@@ -387,7 +512,7 @@ void WalkCookieMap(udmpparser::UserDumpParser& dump, uintptr_t cookieMapAddress,
 	// Process the first node in the binary search tree
 	Node firstNode;
 	if (ReadDumpMemory(dump, cookieMap.firstNode, &firstNode, sizeof(Node)))
-		ProcessNode(dump, firstNode, isChrome);
+		ProcessNode(dump, firstNode, targetConfig);
 	else
 		printf("[-] Failed to read the first node from address: 0x%p\n", (void*)cookieMap.firstNode);
 

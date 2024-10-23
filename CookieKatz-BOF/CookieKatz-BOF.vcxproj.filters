@@ -22,9 +22,6 @@
     <Filter Include="Source Files\ChromeKatz">
       <UniqueIdentifier>{ef7159b2-3e95-42cb-8f02-33d13f8342e8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\ChromeKatz">
-      <UniqueIdentifier>{49bf3db7-8ce7-4922-9ad1-944c03bc4419}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ListChromeProcessCookies.cpp">
@@ -56,11 +53,11 @@
     <ClInclude Include="beacon_user_data.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PEB.h">
-      <Filter>Header Files\ChromeKatz</Filter>
-    </ClInclude>
     <ClInclude Include="DFR.h">
-      <Filter>Header Files\ChromeKatz</Filter>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ChromeKatz\PEB.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

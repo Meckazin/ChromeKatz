@@ -1,9 +1,8 @@
 #pragma once
-#include "base\helpers.h"
-
 #include <Windows.h>
 #include <Psapi.h>
 #include <TlHelp32.h>
+#include <Shlwapi.h>
 
 DFR(KERNEL32, GetLastError);
 #define GetLastError KERNEL32$GetLastError 
@@ -32,6 +31,8 @@ DFR(KERNEL32, K32EnumProcessModulesEx)
 #define K32EnumProcessModulesEx KERNEL32$K32EnumProcessModulesEx
 DFR(KERNEL32, K32GetModuleBaseNameW)
 #define K32GetModuleBaseNameW KERNEL32$K32GetModuleBaseNameW
+DFR(KERNEL32, K32GetModuleFileNameExW)
+#define K32GetModuleFileNameExW KERNEL32$K32GetModuleFileNameExW
 DFR(KERNEL32, K32GetModuleInformation)
 #define K32GetModuleInformation KERNEL32$K32GetModuleInformation
 
@@ -52,6 +53,8 @@ DFR(MSVCRT, towlower)
 #define towlower MSVCRT$towlower
 DFR(MSVCRT, _wcsicmp)
 #define _wcsicmp MSVCRT$_wcsicmp
+DFR(MSVCRT, _stricmp);
+#define _stricmp MSVCRT$_stricmp
 
 DFR(KERNEL32, CreateToolhelp32Snapshot)
 #define CreateToolhelp32Snapshot KERNEL32$CreateToolhelp32Snapshot
@@ -67,3 +70,58 @@ DFR(ADVAPI32, GetTokenInformation)
 #define GetTokenInformation ADVAPI32$GetTokenInformation
 DFR(ADVAPI32, LookupAccountSidW)
 #define LookupAccountSidW ADVAPI32$LookupAccountSidW
+
+#pragma comment(lib,"version.lib")
+DFR(VERSION, GetFileVersionInfoSizeW)
+#define GetFileVersionInfoSizeW VERSION$GetFileVersionInfoSizeW
+DFR(VERSION, GetFileVersionInfoW)
+#define GetFileVersionInfoW VERSION$GetFileVersionInfoW
+DFR(VERSION, VerQueryValueW)
+#define VerQueryValueW VERSION$VerQueryValueW
+
+#pragma comment(lib,"shlwapi.lib")
+DFR(SHLWAPI, PathFindFileNameW)
+#define PathFindFileNameW  SHLWAPI$PathFindFileNameW
+
+/*
+* #pragma comment(lib,"version.lib")
+* VERSION GetFileVersionInfoSizeW
+* Api-ms-win-core-version-l1-1-0.dll GetFileVersionInfoW
+* Api-ms-win-core-version-l1-1-0.dll VerQueryValueW
+* 
+*/
+
+//Printing stuff
+#define PRINT(...) BeaconPrintf(CALLBACK_OUTPUT, __VA_ARGS__)
+#ifdef DEBUG
+#define DebugPrintErrorWithMessage(...) BeaconPrintf(CALLBACK_ERROR, __VA_ARGS__, GetLastError())
+#define DEBUG_PRINT_ERROR_MESSAGE(...) BeaconPrintf(CALLBACK_ERROR, __VA_ARGS__, GetLastError())
+#else
+#define DebugPrintErrorWithMessage(...)
+#define DEBUG_PRINT_ERROR_MESSAGE(...)
+#endif // DEBUG
+#define PrintErrorWithMessage(...) BeaconPrintf(CALLBACK_ERROR, __VA_ARGS__, GetLastError())
+
+//All the shared stuff
+void ConvertToByteArray(uintptr_t value, BYTE* byteArray, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+        byteArray[i] = static_cast<BYTE>(value & 0xFF);
+        value >>= 8;
+    }
+}
+
+enum TargetVersion {
+    Chrome,
+    Edge,
+    Webview2,
+    OldChrome,
+    OldEdge,
+    Chrome124
+};
+
+struct BrowserVersion {
+    WORD highMajor;
+    WORD lowMajor;
+    WORD highMinor;
+    WORD lowMinor;
+};

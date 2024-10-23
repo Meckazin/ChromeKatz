@@ -237,8 +237,8 @@
     <ClInclude Include="base\mock.h" />
     <ClInclude Include="beacon.h" />
     <ClInclude Include="beacon_user_data.h" />
+    <ClInclude Include="ChromeKatz\PEB.h" />
     <ClInclude Include="DFR.h" />
-    <ClInclude Include="PEB.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />

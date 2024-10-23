@@ -1,5 +1,11 @@
 #pragma once
 #include <minwindef.h>
 
-//Currenty not used
-BOOL GetSearchPattern(BYTE* pattern);
+struct BrowserVersion {
+    WORD highMajor;
+    WORD lowMajor;
+    WORD highMinor;
+    WORD lowMinor;
+};
+
+BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion);

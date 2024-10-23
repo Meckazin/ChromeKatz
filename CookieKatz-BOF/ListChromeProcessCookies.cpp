@@ -1,6 +1,5 @@
 #include <Windows.h>
 #include "base\helpers.h"
-
 /**
  * For the debug build we want:
  *   a) Include the mock-up layer
@@ -13,13 +12,10 @@
 #define DECLSPEC_IMPORT
 #endif
 
-#include "ChromeKatz/Process.cpp"
-
 extern "C" {
 #include "beacon.h"
-
-    DFR(MSVCRT, _stricmp);
-#define _stricmp MSVCRT$_stricmp
+#include "DFR.h"
+#include "ChromeKatz/Process.cpp"
 
     //This is important!
     void banner() {
