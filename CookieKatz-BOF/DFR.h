@@ -4,6 +4,8 @@
 #include <TlHelp32.h>
 #include <Shlwapi.h>
 
+#include "base/helpers.h"
+
 DFR(KERNEL32, GetLastError);
 #define GetLastError KERNEL32$GetLastError 
 
@@ -38,6 +40,12 @@ DFR(KERNEL32, K32GetModuleInformation)
 
 DFR(KERNEL32, IsWow64Process)
 #define IsWow64Process KERNEL32$IsWow64Process
+
+DFR(KERNEL32, QueryFullProcessImageNameW)
+#define QueryFullProcessImageNameW KERNEL32$QueryFullProcessImageNameW
+
+DFR(version, VerQueryValueA)
+#define VerQueryValueA version$VerQueryValueA
 
 DFR(MSVCRT, memcpy)
 #define memcpy MSVCRT$memcpy
