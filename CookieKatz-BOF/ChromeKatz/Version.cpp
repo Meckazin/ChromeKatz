@@ -29,7 +29,7 @@ BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion) {
 
     VS_FIXEDFILEINFO* fileInfo;
     UINT len = 0;
-    if (!VerQueryValue(buffer, TEXT("\\"), reinterpret_cast<void**>(&fileInfo), &len)) {
+    if (!VerQueryValueA(buffer, "\\", reinterpret_cast<void**>(&fileInfo), &len)) {
         DEBUG_PRINT_ERROR_MESSAGE(TEXT("VerQueryValue failed"));
         free(buffer);
         return FALSE;
