@@ -131,17 +131,18 @@ extern "C" {
 
         //Update config based on target version
         if (targetBrowser == Chrome) {
-            if ((browserVersion.highMajor == 125 && browserVersion.highMinor <= 6387) ||
-                (browserVersion.highMajor == 124 && browserVersion.highMinor >= 6329))
-                targetBrowser = Chrome124;
-            else if (browserVersion.highMajor <= 124 ||
-                (browserVersion.highMajor == 124 && browserVersion.highMinor < 6329))
-                targetBrowser = OldChrome;
+            if ((browserVersion.highMajor == 122 && browserVersion.highMinor <= 6260) ||
+                (browserVersion.highMajor < 122)) {
+                BeaconPrintf(CALLBACK_ERROR, "This browser version is not supported!\n");
+                return ;
+            }
         }
         else if (targetBrowser == Edge || targetBrowser == Webview2) {
-            if (browserVersion.highMajor <= 124 ||
-                (browserVersion.highMajor == 124 && browserVersion.highMinor < 2478))
-                targetBrowser = OldEdge;
+            if ((browserVersion.highMajor == 122 && browserVersion.highMinor <= 6260) ||
+                (browserVersion.highMajor < 122)) { //Honestly no idea, these haven't been tested
+                BeaconPrintf(CALLBACK_ERROR, "This browser version is not supported!\n");
+                return ;
+            }
         }
 
 
