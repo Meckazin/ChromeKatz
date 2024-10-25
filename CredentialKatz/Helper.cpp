@@ -75,3 +75,12 @@ void PrintErrorWithMessage(const wchar_t* buf) {
     else
         wprintf(std::format(L"[ERROR] {}, Unknown error occured!\n", buf).c_str());
 }
+void PrintMessageW(wchar_t const* const _Format, ...) {
+    wprintf(_Format);
+}
+void PrintMessageA(char const* const _Format, ...) {
+    printf(_Format);
+}
+int my_sscanf_s(const char* buffer, const char* format, ...) {
+    return sscanf_s(buffer, format);
+}

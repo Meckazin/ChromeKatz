@@ -1,4 +1,3 @@
-#pragma once
 /*
  * Beacon Object Files (BOF)
  * -------------------------

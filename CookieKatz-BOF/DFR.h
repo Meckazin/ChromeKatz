@@ -91,14 +91,6 @@ DFR(VERSION, VerQueryValueW)
 DFR(SHLWAPI, PathFindFileNameW)
 #define PathFindFileNameW  SHLWAPI$PathFindFileNameW
 
-/*
-* #pragma comment(lib,"version.lib")
-* VERSION GetFileVersionInfoSizeW
-* Api-ms-win-core-version-l1-1-0.dll GetFileVersionInfoW
-* Api-ms-win-core-version-l1-1-0.dll VerQueryValueW
-* 
-*/
-
 //Printing stuff
 #define PRINT(...) BeaconPrintf(CALLBACK_OUTPUT, __VA_ARGS__)
 #ifdef DEBUG

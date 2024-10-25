@@ -52,9 +52,9 @@ BOOL GetTokenUser(IN HANDLE hProcess) {
 		return FALSE;
 	}
 
-	wprintf(DomainName);
-	wprintf(L"\\");
-	wprintf(UserName);
+	PRINTW(DomainName);
+	PRINTW(L"\\");
+	PRINTW(UserName);
 
 	free(hTokenUser);
 	delete[] UserName;

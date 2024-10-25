@@ -87,51 +87,63 @@ BOOL PatternSearch(const BYTE* pattern, size_t patternSize, const uint8_t* sourc
 	return FALSE;
 }
 
-BOOL FindDLLPattern(udmpparser::UserDumpParser& dump, const char* dllName, const BYTE* pattern, size_t patternSize, uintptr_t& resultAddress) {
+BOOL FindLargestSection(udmpparser::UserDumpParser& dump, std::string moduleName, uintptr_t& resultAddress) {
+
+	SIZE_T largestRegion = 0;
 
 	for (const auto& [_, Descriptor] : dump.GetMem()) {
 		const char* State = StateToString(Descriptor.State);
+		const char* Type = TypeToString(Descriptor.Type);
 
-		if (strcmp(State, "MEM_FREE") == 0)
+		if (strcmp(State, "MEM_COMMIT") != 0)
+			continue;
+		if (strcmp(Type, "MEM_IMAGE") != 0)
+			continue;
+		if ((Descriptor.Protect & PAGE_READONLY) == 0)
+			continue;
+		if (Descriptor.DataSize == 0)
 			continue;
 
 		//Check if memory area is a module
 		const auto& Module = dump.GetModule(Descriptor.BaseAddress);
 
-		//This is a module if not nullptr
-		if (Module != nullptr) {
+		//Skip over other areas and modules
+		if (Module == nullptr || Module->ModuleName.find(moduleName) == std::string::npos)
+			continue;
 
-			const auto& ModulePathName = Module->ModuleName;
-			auto ModuleNameOffset = ModulePathName.find_last_of('\\');
-			if (ModuleNameOffset == ModulePathName.npos) {
-				ModuleNameOffset = 0;
-			}
-			else {
-				ModuleNameOffset++;
-			}
-
-
-			if (strcmp(&ModulePathName[ModuleNameOffset], dllName) == 0)
-			{
-				printf("[*] Found target module: %s\n", &ModulePathName[ModuleNameOffset]);
-
-				uintptr_t memoryOffset = 0;
-				if (PatternSearch(pattern, patternSize, Descriptor.Data, Module->SizeOfImage, memoryOffset)) {
-					resultAddress = Module->BaseOfImage + memoryOffset;
-					return TRUE;
-				}
-				else {
-					printf("[-] Failed to find the first pattern!\n");
-					return FALSE;
-				}
-				break;
-			}
+		if (Descriptor.RegionSize > largestRegion) {
+			largestRegion = Descriptor.RegionSize;
+			resultAddress = Descriptor.BaseAddress;
 		}
 	}
-
-	printf("[-] Failed to find the target module: %s\n", dllName);
+	if (largestRegion > 0)
+		return TRUE;
 
 	return FALSE;
+}
+
+void PatchPattern(BYTE* pattern, BYTE baseAddrPattern[], size_t offset) {
+	size_t szAddr = sizeof(uintptr_t) - 1;
+	for (offset -= 1; szAddr > 3; offset--) {
+		pattern[offset] = baseAddrPattern[szAddr];
+		szAddr--;
+	}
+}
+
+BYTE* PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAddress) {
+
+	//Copy the pattern
+	BYTE* newPattern = (BYTE*)malloc(sizeof(BYTE) * patternSize);
+	for (size_t i = 0; i < patternSize; i++)
+		newPattern[i] = pattern[i];
+
+	BYTE baseAddrPattern[sizeof(uintptr_t)];
+	ConvertToByteArray(baseAddress, baseAddrPattern, sizeof(uintptr_t));
+
+	PatchPattern(newPattern, baseAddrPattern, 16);
+	PatchPattern(newPattern, baseAddrPattern, 24);
+
+	return newPattern;
 }
 
 BOOL FindPattern(udmpparser::UserDumpParser& dump, const BYTE* pattern, size_t patternSize, uintptr_t* CookieMonsterInstances, size_t& instanceCount) {
@@ -142,22 +154,31 @@ BOOL FindPattern(udmpparser::UserDumpParser& dump, const BYTE* pattern, size_t p
 
 		if (strcmp(State, "MEM_COMMIT") != 0)
 			continue;
+		if (strcmp(Type, "MEM_PRIVATE") != 0)
+			continue;
+		if ((Descriptor.Protect & PAGE_READWRITE) == 0)
+			continue;
 		if (Descriptor.DataSize == 0)
 			continue;
 
-		//Check if memory area is a module
-		const auto& Module = dump.GetModule(Descriptor.BaseAddress);
-
-		//Skip over modules
-		if (Module != nullptr)
-			continue;
-
-		uintptr_t resultAddress = 0;
-		uintptr_t memoryOffset = 0;
+		BYTE* newPattern = PatchBaseAddress(pattern, patternSize, Descriptor.BaseAddress);
 
 		for (size_t i = 0; i <= Descriptor.DataSize - patternSize; ++i) {
-			if (MyMemCmp(Descriptor.Data + i, pattern, patternSize)) {
-				CookieMonsterInstances[instanceCount] = Descriptor.BaseAddress + i;
+			if (MyMemCmp(Descriptor.Data + i, newPattern, patternSize)) {
+				uintptr_t resultAddress = Descriptor.BaseAddress + i;
+				uintptr_t offset = resultAddress - Descriptor.BaseAddress;
+#ifdef _DEBUG
+				PRINT("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
+					(void*)Descriptor.AllocationBase,
+					(void*)Descriptor.BaseAddress,
+					offset);
+#endif
+				if (instanceCount >= 100) {
+					free(newPattern);
+					return TRUE;
+				}
+
+				CookieMonsterInstances[instanceCount] = resultAddress;
 				instanceCount++;
 			}
 		}

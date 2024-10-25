@@ -1,14 +1,12 @@
 #define _AMD64_
-
-#include "Helper.h"
-
 #include <Windows.h>
 #include <tlhelp32.h>
-#include <stdio.h>
 #include <psapi.h>
 #include <Shlwapi.h>
 
+#include "Helper.h"
 #include "Tokens.h"
+#include "Memory.h"
 
 BOOL GetProcessName(HANDLE hProcess, LPCWSTR& targetBrowser) {
 
@@ -17,7 +15,7 @@ BOOL GetProcessName(HANDLE hProcess, LPCWSTR& targetBrowser) {
 
     // Query the full process image name
     if (!QueryFullProcessImageName(hProcess, 0, processPath, &size)) {
-        DebugPrintErrorWithMessage(TEXT("QueryFullProcessImageName failed to get target process name"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("QueryFullProcessImageName failed to get target process name"));
         return FALSE;
     }
 
@@ -37,7 +35,7 @@ void FindAllSuitableProcesses(LPCWSTR processName)
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
     {
-        DebugPrintErrorWithMessage(TEXT("CreateToolhelp32Snapshot failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("CreateToolhelp32Snapshot failed"));
         return;
     }
 
@@ -46,7 +44,7 @@ void FindAllSuitableProcesses(LPCWSTR processName)
 
     if (!Process32First(hProcessSnap, &pe32))
     {
-        DebugPrintErrorWithMessage(TEXT("Process32First failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Process32First failed"));
         CloseHandle(hProcessSnap);
         return;
     }
@@ -61,10 +59,10 @@ void FindAllSuitableProcesses(LPCWSTR processName)
             {
                 HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
 
-                printf("[+] Found browser process: %d\n", pe32.th32ProcessID);
-                printf("    Process owner: ");
+                PRINT("[+] Found browser process: %d\n", pe32.th32ProcessID);
+                PRINT("    Process owner: ");
                 GetTokenUser(hHandle);
-                printf("\n\n");
+                PRINT("\n\n");
 
                 CloseHandle(hHandle);
             }
@@ -81,7 +79,7 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
     {
-        DebugPrintErrorWithMessage(TEXT("CreateToolhelp32Snapshot failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("CreateToolhelp32Snapshot failed"));
         return FALSE;
     }
 
@@ -90,7 +88,7 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
 
     if (!Process32First(hProcessSnap, &pe32))
     {
-        DebugPrintErrorWithMessage(TEXT("Process32First failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Process32First failed"));
         CloseHandle(hProcessSnap);
         return(FALSE);
     }
@@ -107,7 +105,7 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
 
                 HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
 
-                printf("[+] Found %ls main process PID: %lu\n", processName, pe32.th32ProcessID);
+                PRINT("[+] Found %ls main process PID: %lu\n", processName, pe32.th32ProcessID);
                 *pid = pe32.th32ProcessID;
                 *hProcess = hHandle;
                 return TRUE;
@@ -123,12 +121,12 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
 
 BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
 
-    size_t szModules = sizeof(HMODULE) * 1024; //Should be enough ;)
+    DWORD szModules = sizeof(HMODULE) * 1024; //Should be enough ;)
     HMODULE* hModules = (HMODULE*)malloc(szModules);
     DWORD cbNeeded;
 
     if (hModules == 0 || !EnumProcessModulesEx(hProcess, hModules, szModules, &cbNeeded, LIST_MODULES_ALL)) {
-        DebugPrintErrorWithMessage(TEXT("EnumProcessModulesEx failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("EnumProcessModulesEx failed"));
         free(hModules);
         return FALSE;
     }
@@ -136,13 +134,13 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
     for (int i = 0; i < (cbNeeded / sizeof(HMODULE)); ++i) {
         wchar_t szModuleName[MAX_PATH];
         if (GetModuleBaseName(hProcess, hModules[i], szModuleName, sizeof(szModuleName) / sizeof(wchar_t)) == 0) {
-            DebugPrintErrorWithMessage(TEXT("GetModuleBaseName failed"));
+            DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleBaseName failed"));
             continue;
         }
         if (_wcsicmp(szModuleName, moduleName) == 0) {
             MODULEINFO moduleInfo;
             if (!GetModuleInformation(hProcess, hModules[i], &moduleInfo, sizeof(moduleInfo))) {
-                DebugPrintErrorWithMessage(TEXT("GetModuleInformation failed"));
+                DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleInformation failed"));
                 free(hModules);
                 return FALSE;
             }
@@ -160,7 +158,7 @@ BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess) {
     HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     if (hHandle == NULL || hHandle == INVALID_HANDLE_VALUE)
     {
-        DebugPrintErrorWithMessage(TEXT("OpenProcess failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("OpenProcess failed"));
         return FALSE;
     }
     *hProcess = hHandle;
@@ -170,7 +168,7 @@ BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess) {
 BOOL IsWow64(HANDLE hProcess) {
     BOOL isBrowserWow64 = FALSE;
     if (!IsWow64Process(hProcess, &isBrowserWow64)) {
-        DebugPrintErrorWithMessage(TEXT("IsWow64Process failed for browser process"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("IsWow64Process failed for browser process"));
         CloseHandle(hProcess);
         return TRUE;
     }

