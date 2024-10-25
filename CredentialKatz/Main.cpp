@@ -235,7 +235,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    PRINT("[*] Found %zu instances of CredentialMap!\n", szPasswordReuseDetectorInstances);
+    PRINT("[*] Found %Iu instances of CredentialMap!\n", szPasswordReuseDetectorInstances);
 #ifdef _DEBUG
     for (size_t i = 0; i < szPasswordReuseDetectorInstances; i++)
         PRINTW(TEXT("[*] Found PasswordReuseDetector on 0x%p\n"), (void*)PasswordReuseDetectorInstances[i]);

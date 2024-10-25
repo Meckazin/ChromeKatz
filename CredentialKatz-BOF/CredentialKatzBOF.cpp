@@ -198,7 +198,7 @@ extern "C" {
             return;
         }
 
-        PRINT("[*] Found %zu instances of CredentialMap!\n", szPasswordReuseDetectorInstances);
+        PRINT("[*] Found %Iu instances of CredentialMap!\n", szPasswordReuseDetectorInstances);
 #ifdef _DEBUG
         for (size_t i = 0; i < szPasswordReuseDetectorInstances; i++)
             PRINT("[*] Found PasswordReuseDetector on 0x%p\n", (void*)PasswordReuseDetectorInstances[i]);
