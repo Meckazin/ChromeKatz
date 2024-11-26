@@ -7,7 +7,9 @@ enum TargetVersion {
 	Webview2,
 	OldChrome,
 	OldEdge,
-	Chrome124
+	Chrome124,
+	Chrome130,
+	Edge130
 };
 
 void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, TargetVersion targetConfig);

@@ -110,7 +110,12 @@ int main(int argc, char* argv[]) {
 
 	//Update config based on target version
 	if (targetConfig == Chrome) {
-		if ((highMajor == 125 && highMinor <= 6387) ||
+		if (highMajor >= 131 && highMinor >= 6778)
+			targetConfig = Chrome;
+		else if ((highMajor <= 131 && highMinor < 6778) &&
+			(highMajor >= 125 && highMinor > 6387))
+			targetConfig = Chrome130;
+		else if ((highMajor == 125 && highMinor <= 6387) ||
 			(highMajor == 124 && highMinor >= 6329))
 			targetConfig = Chrome124;
 		else if (highMajor <= 124 ||
@@ -118,7 +123,12 @@ int main(int argc, char* argv[]) {
 			targetConfig = OldChrome;
 	}
 	else if (targetConfig == Edge || targetConfig == Webview2) {
-		if (highMajor <= 124 ||
+		if (highMajor >= 131 && highMinor >= 2903)
+			targetConfig = Edge;
+		else if ((highMajor <= 131 && highMinor < 2903) ||
+			(highMajor > 124))
+			targetConfig = Edge130;
+		else if (highMajor <= 124 ||
 			(highMajor == 124 && highMinor < 2478))
 			targetConfig = OldEdge;
 	}

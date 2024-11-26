@@ -18,6 +18,19 @@ struct RemoteString {
 	UCHAR strAlloc; //Seems to always be 0x80, honestly no idea what it should mean
 };
 
+struct RemoteVector {
+	uintptr_t begin_;
+	uintptr_t end_;
+	uintptr_t unk; //Seems to be same as the end_ ?
+};
+
+struct ProcessBoundString {
+	RemoteVector maybe_encrypted_data_;
+	size_t original_size_;
+	BYTE unk[8]; //No clue
+	bool encrypted_ = false;
+};
+
 #pragma region Chrome
 enum class CookieSameSite {
 	UNSPECIFIED = -1,
@@ -72,7 +85,7 @@ struct CanonicalCookieChrome {
 	char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
 	CookieSourceScheme source_scheme;
 	int source_port;    //Not implemented //End of Net::CookieBase
-	OptimizedString value;
+	ProcessBoundString value; //size 48
 	int64_t expiry_date;
 	int64_t last_access_date;
 	int64_t last_update_date;
@@ -95,7 +108,7 @@ struct CanonicalCookieEdge {
 	char partition_key[136];  //Not implemented
 	CookieSourceScheme source_scheme;
 	int source_port;    //Not implemented //End of Net::CookieBase
-	OptimizedString value;
+	ProcessBoundString value;
 	int64_t expiry_date;
 	int64_t last_access_date;
 	int64_t last_update_date;
@@ -126,6 +139,46 @@ struct CanonicalCookie124 {
 	bool httponly;
 	CookieSameSite same_site;
 	BYTE partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+	CookieSourceScheme source_scheme;
+	int source_port;    //Not implemented //End of Net::CookieBase
+	OptimizedString value;
+	int64_t expiry_date;
+	int64_t last_access_date;
+	int64_t last_update_date;
+	CookiePriority priority;       //Not implemented
+	CookieSourceType source_type;    //Not implemented
+};
+
+struct CanonicalCookieChrome130 {
+	uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+	OptimizedString name;
+	OptimizedString domain;
+	OptimizedString path;
+	int64_t creation_date;
+	bool secure;
+	bool httponly;
+	CookieSameSite same_site;
+	char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+	CookieSourceScheme source_scheme;
+	int source_port;    //Not implemented //End of Net::CookieBase
+	OptimizedString value;
+	int64_t expiry_date;
+	int64_t last_access_date;
+	int64_t last_update_date;
+	CookiePriority priority;       //Not implemented
+	CookieSourceType source_type;    //Not implemented
+};
+
+struct CanonicalCookieEdge130 {
+	uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+	OptimizedString name;
+	OptimizedString domain;
+	OptimizedString path;
+	int64_t creation_date;
+	bool secure;
+	bool httponly;
+	CookieSameSite same_site;
+	char partition_key[136];  //Not implemented
 	CookieSourceScheme source_scheme;
 	int source_port;    //Not implemented //End of Net::CookieBase
 	OptimizedString value;
@@ -299,6 +352,27 @@ BOOL ReadDumpMemory(udmpparser::UserDumpParser& dump, uint64_t address, LPVOID t
 	return TRUE;
 }
 
+void ReadVector(udmpparser::UserDumpParser& dump, RemoteVector vector, DWORD origSize) {
+	size_t szSize = vector.end_ - vector.begin_;
+	if (szSize <= 0) {
+		//Some cookies just are like that. tapad.com cookie: TapAd_3WAY_SYNCS for example is buggy even with browser tools
+		printf("[-] Invalid value length\n");
+		return;
+	}
+
+	BYTE* buf = (BYTE*)malloc(szSize + 1); //+1 for the string termination
+	if (buf == 0 || !ReadDumpMemory(dump, vector.begin_, buf, szSize)) {
+		DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read encrypted cookie value"));
+		free(buf);
+		return;
+	}
+
+	memcpy_s(buf + szSize, 1, "\0", 1);
+	PRINT("%s\n", buf);
+
+	free(buf);
+}
+
 void ReadString(udmpparser::UserDumpParser& dump, OptimizedString string) {
 
 	if (string.len > 23)
@@ -337,50 +411,96 @@ void PrintTimeStamp(int64_t timeStamp) {
 		systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
 }
 
-void PrintValuesEdge(CanonicalCookieEdge cookie, udmpparser::UserDumpParser& dump) {
-	printf("    Name: ");
+void PrintValuesEdge(CanonicalCookieEdge130 cookie, udmpparser::UserDumpParser& dump) {
+	PRINT("    Name: ");
 	ReadString(dump, cookie.name);
-	printf("    Value: ");
+	PRINT("    Value: ");
 	ReadString(dump, cookie.value);
-	printf("    Domain: ");
+	PRINT("    Domain: ");
 	ReadString(dump, cookie.domain);
-	printf("    Path: ");
+	PRINT("    Path: ");
 	ReadString(dump, cookie.path);
-	printf("    Creation time: ");
+	PRINT("    Creation time: ");
 	PrintTimeStamp(cookie.creation_date);
-	printf("    Expiration time: ");
+	PRINT("    Expiration time: ");
 	PrintTimeStamp(cookie.expiry_date);
-	printf("    Last accessed: ");
+	PRINT("    Last accessed: ");
 	PrintTimeStamp(cookie.last_access_date);
-	printf("    Last updated: ");
+	PRINT("    Last updated: ");
 	PrintTimeStamp(cookie.last_update_date);
-	printf("    Secure: %s\n", cookie.secure ? "True" : "False");
-	printf("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+	PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+	PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-	printf("\n");
+	PRINT("\n");
+}
+
+void PrintValuesEdge(CanonicalCookieEdge cookie, udmpparser::UserDumpParser& dump) {
+	PRINT("    Name: ");
+	ReadString(dump, cookie.name);
+	PRINT("    Value: ");
+	ReadVector(dump, cookie.value.maybe_encrypted_data_, cookie.value.original_size_);
+	PRINT("    Domain: ");
+	ReadString(dump, cookie.domain);
+	PRINT("    Path: ");
+	ReadString(dump, cookie.path);
+	PRINT("    Creation time: ");
+	PrintTimeStamp(cookie.creation_date);
+	PRINT("    Expiration time: ");
+	PrintTimeStamp(cookie.expiry_date);
+	PRINT("    Last accessed: ");
+	PrintTimeStamp(cookie.last_access_date);
+	PRINT("    Last updated: ");
+	PrintTimeStamp(cookie.last_update_date);
+	PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+	PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+
+	PRINT("\n");
 }
 
 void PrintValuesChrome(CanonicalCookieChrome cookie, udmpparser::UserDumpParser& dump) {
-	printf("    Name: ");
+	PRINT("    Name: ");
 	ReadString(dump, cookie.name);
-	printf("    Value: ");
-	ReadString(dump, cookie.value);
-	printf("    Domain: ");
+	PRINT("    Value: ");
+	ReadVector(dump, cookie.value.maybe_encrypted_data_, cookie.value.original_size_);
+	PRINT("    Domain: ");
 	ReadString(dump, cookie.domain);
-	printf("    Path: ");
+	PRINT("    Path: ");
 	ReadString(dump, cookie.path);
-	printf("    Creation time: ");
+	PRINT("    Creation time: ");
 	PrintTimeStamp(cookie.creation_date);
-	printf("    Expiration time: ");
+	PRINT("    Expiration time: ");
 	PrintTimeStamp(cookie.expiry_date);
-	printf("    Last accessed: ");
+	PRINT("    Last accessed: ");
 	PrintTimeStamp(cookie.last_access_date);
-	printf("    Last updated: ");
+	PRINT("    Last updated: ");
 	PrintTimeStamp(cookie.last_update_date);
-	printf("    Secure: %s\n", cookie.secure ? "True" : "False");
-	printf("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+	PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+	PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-	printf("\n");
+	PRINT("\n");
+}
+
+void PrintValuesChrome(CanonicalCookieChrome130 cookie, udmpparser::UserDumpParser& dump) {
+	PRINT("    Name: ");
+	ReadString(dump, cookie.name);
+	PRINT("    Value: ");
+	ReadString(dump, cookie.value);
+	PRINT("    Domain: ");
+	ReadString(dump, cookie.domain);
+	PRINT("    Path: ");
+	ReadString(dump, cookie.path);
+	PRINT("    Creation time: ");
+	PrintTimeStamp(cookie.creation_date);
+	PRINT("    Expiration time: ");
+	PrintTimeStamp(cookie.expiry_date);
+	PRINT("    Last accessed: ");
+	PrintTimeStamp(cookie.last_access_date);
+	PRINT("    Last updated: ");
+	PrintTimeStamp(cookie.last_update_date);
+	PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
+	PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+
+	PRINT("\n");
 }
 
 void PrintValuesChrome(CanonicalCookie124 cookie, udmpparser::UserDumpParser& dump) {

@@ -37,6 +37,7 @@ struct MatchingReusedCredential {
     char padding[7];
 
     OptimizedString domain;
+    BYTE GURL[120];
     WideOptimizedString username;
     Store credentialStore;
 };
@@ -240,8 +241,8 @@ BYTE* PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAd
     BYTE baseAddrPattern[sizeof(uintptr_t)];
     ConvertToByteArray(baseAddress, baseAddrPattern, sizeof(uintptr_t));
 
-    PatchPattern(newPattern, baseAddrPattern, 16);
-    PatchPattern(newPattern, baseAddrPattern, 24);
+    PatchPattern(newPattern, baseAddrPattern, 40);
+    PatchPattern(newPattern, baseAddrPattern, 48);
 
     return newPattern;
 }

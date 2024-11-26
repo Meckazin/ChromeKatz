@@ -131,7 +131,12 @@ extern "C" {
 
         //Update config based on target version
         if (targetBrowser == Chrome) {
-            if ((browserVersion.highMajor == 125 && browserVersion.highMinor <= 6387) ||
+            if (browserVersion.highMajor >= 131 && browserVersion.highMinor >= 6778)
+                targetBrowser = Chrome;
+            else if ((browserVersion.highMajor <= 131 && browserVersion.highMinor < 6778) &&
+                (browserVersion.highMajor >= 125 && browserVersion.highMinor > 6387))
+                targetBrowser = Chrome130;
+            else if ((browserVersion.highMajor == 125 && browserVersion.highMinor <= 6387) ||
                 (browserVersion.highMajor == 124 && browserVersion.highMinor >= 6329))
                 targetBrowser = Chrome124;
             else if (browserVersion.highMajor <= 124 ||
@@ -139,7 +144,12 @@ extern "C" {
                 targetBrowser = OldChrome;
         }
         else if (targetBrowser == Edge || targetBrowser == Webview2) {
-            if (browserVersion.highMajor <= 124 ||
+            if (browserVersion.highMajor >= 131 && browserVersion.highMinor >= 2903)
+                targetBrowser = Edge;
+            else if ((browserVersion.highMajor <= 131 && browserVersion.highMinor < 2903) ||
+                (browserVersion.highMajor > 124))
+                targetBrowser = Edge130;
+            else if (browserVersion.highMajor <= 124 ||
                 (browserVersion.highMajor == 124 && browserVersion.highMinor < 2478))
                 targetBrowser = OldEdge;
         }

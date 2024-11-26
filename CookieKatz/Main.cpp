@@ -162,12 +162,14 @@ int main(int argc, char* argv[]) {
 #endif
 
     //Versions and configs
-    // 125.0.6388.0 >= Chrome
+    // 131.0.6778.0 >= Chrome
+    // 125.0.6388.0 >= Chrome130
     // 125.0.6387.0 <= Chrome124
     // 124.0.6329.0 >= Chrome124
     // 124.0.6328.0 <= OldChrome
 
-    //124.0.2478 >= Edge
+    //131.0.2903 >= Edge
+    //124.0.2478 >= Edge130
     //124.0.2478 < OldEdge
     //I couldn't test that at what point Edge CanonicalCookie class was updated
     //So for now Edge doesn't support certain versions
@@ -181,7 +183,12 @@ int main(int argc, char* argv[]) {
 
     //Update config based on target version
     if (targetConfig == Chrome) {
-        if ((browserVersion.highMajor == 125 && browserVersion.highMinor <= 6387) ||
+        if (browserVersion.highMajor >= 131 && browserVersion.highMinor >= 6778)
+            targetConfig = Chrome;
+        else if ((browserVersion.highMajor <= 131 && browserVersion.highMinor < 6778) &&
+            (browserVersion.highMajor >= 125 && browserVersion.highMinor > 6387))
+            targetConfig = Chrome130;
+        else if ((browserVersion.highMajor == 125 && browserVersion.highMinor <= 6387) ||
             (browserVersion.highMajor == 124 && browserVersion.highMinor >= 6329))
             targetConfig = Chrome124;
         else if (browserVersion.highMajor <= 124 ||
@@ -189,7 +196,12 @@ int main(int argc, char* argv[]) {
             targetConfig = OldChrome;
     }
     else if (targetConfig == Edge || targetConfig == Webview2) {
-        if (browserVersion.highMajor <= 124 ||
+        if (browserVersion.highMajor >= 131 && browserVersion.highMinor >= 2903)
+            targetConfig = Edge;
+        else if ((browserVersion.highMajor <= 131 && browserVersion.highMinor < 2903) ||
+            (browserVersion.highMajor > 124))
+            targetConfig = Edge130;
+        else if (browserVersion.highMajor <= 124 ||
             (browserVersion.highMajor == 124 && browserVersion.highMinor < 2478))
             targetConfig = OldEdge;
     }
