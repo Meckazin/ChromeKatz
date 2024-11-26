@@ -9,6 +9,9 @@ Both tools have an exe, Beacon Object File, and minidump parser available.
 
 CookieKatz has been completely revamped to use much more robust method for finding the cookies! New method supports older browser version as well.
 
+Google doesn't want to pay bounties and my cats are hungry. But you can support us via Ko-Fi!
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1E716M78J)
+
 ## CredentialKatz - Dump credential manager contents from memory
 
 CredentialKatz is a project that allows operators to dump all credentials from Credential Manager of Chrome and Edge.
