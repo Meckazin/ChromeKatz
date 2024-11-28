@@ -4,12 +4,12 @@
 
 #define MAX_NAME 256
 
-BOOL GetTokenUser(IN HANDLE hProcess) {
+BOOL GetTokenUser(IN HANDLE hProcess, HANDLE hOutFile) {
 
 	HANDLE hToken = NULL;
 	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken))
 	{
-		DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser OpenProcessToken failed!");
+		DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser OpenProcessToken failed!", hOutFile);
 		return FALSE;
 	}
 
@@ -19,7 +19,7 @@ BOOL GetTokenUser(IN HANDLE hProcess) {
 	if (!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)) {
 		DWORD dwError = GetLastError();
 		if (dwError != ERROR_INSUFFICIENT_BUFFER) {
-			DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser GetTokenInformation querying buffer size failed!");
+			DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser GetTokenInformation querying buffer size failed!", hOutFile);
 			return FALSE;
 		}
 	}
@@ -27,7 +27,7 @@ BOOL GetTokenUser(IN HANDLE hProcess) {
 	hTokenUser = (PTOKEN_USER)malloc(dwSize);
 
 	if (!GetTokenInformation(hToken, TokenUser, hTokenUser, dwSize, &dwSize)) {
-		DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser GetTokenInformation failed!");
+		DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser GetTokenInformation failed!", hOutFile);
 		free(hTokenUser);
 		return FALSE;
 	}
@@ -46,14 +46,14 @@ BOOL GetTokenUser(IN HANDLE hProcess) {
 	DWORD dwMaxDomainName = MAX_NAME;
 	SID_NAME_USE SidUser = SidTypeUser;
 	if (!LookupAccountSidW(NULL, hTokenUser->User.Sid, UserName, &dwMaxUserName, DomainName, &dwMaxDomainName, &SidUser)) {
-		DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser LookupAccountSidW failed!");
+		DEBUG_PRINT_ERROR_MESSAGE(L"GetTokenUser LookupAccountSidW failed!", hOutFile);
 		free(hTokenUser);
 		return FALSE;
 	}
 
-	PRINTW(DomainName);
-	PRINTW(L"\\");
-	PRINTW(UserName);
+	PRINTW(hOutFile, DomainName);
+	PRINTW(hOutFile, L"\\");
+	PRINTW(hOutFile, UserName);
 
 	free(hTokenUser);
 	delete[] UserName;

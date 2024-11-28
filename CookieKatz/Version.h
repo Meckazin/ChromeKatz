@@ -8,4 +8,4 @@ struct BrowserVersion {
     WORD lowMinor;
 };
 
-BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion);
+BOOL GetBrowserVersion(HANDLE hProcess, BrowserVersion& browserVersion, HANDLE hFile);

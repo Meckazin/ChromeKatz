@@ -1,4 +1,4 @@
 #pragma once
 #include <minwindef.h>
 
-BOOL GetTokenUser(IN HANDLE hProcess);
+BOOL GetTokenUser(IN HANDLE hProcess, HANDLE hOutFile);

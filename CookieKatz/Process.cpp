@@ -8,6 +8,7 @@
 #include "Helper.h"
 #include "Tokens.h"
 #include "Memory.h"
+#include "Process.h"
 
 typedef enum _PROCESSINFOCLASS {
     ProcessBasicInformation,
@@ -83,11 +84,11 @@ typedef NTSTATUS(NTAPI* NtQueryInformationProcess)(
     OUT PULONG ReturnLength OPTIONAL
     );
 
-BOOL ReadRemoteProcessPEB(IN HANDLE hProcess, OUT PEB* peb) {
+BOOL Process::ReadRemoteProcessPEB(OUT PEB* peb) {
 
     HMODULE hNtDll = LoadLibrary(TEXT("ntdll.dll"));
     if (hNtDll == NULL || hNtDll == INVALID_HANDLE_VALUE) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("LoadLibrary could not load ntdll"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("LoadLibrary could not load ntdll"), hOutFile);
         return FALSE;
     }
     NtQueryInformationProcess pNtQueryInformationProcess = (NtQueryInformationProcess)GetProcAddress(hNtDll, "NtQueryInformationProcess");
@@ -102,7 +103,7 @@ BOOL ReadRemoteProcessPEB(IN HANDLE hProcess, OUT PEB* peb) {
         size_t szPEB = 0;
 
         if (!ReadProcessMemory(hProcess, processInfo.PebBaseAddress, peb, sizeof(PEB), &szPEB) || szPEB < sizeof(PEB)) {
-            DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read Chrome PEB"));
+            DEBUG_PRINT_ERROR_MESSAGE(TEXT("Failed to read Chrome PEB"), hOutFile);
             return FALSE;
         }
         else
@@ -110,26 +111,26 @@ BOOL ReadRemoteProcessPEB(IN HANDLE hProcess, OUT PEB* peb) {
     }
     else
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("ProcessBasicInformation failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("ProcessBasicInformation failed"), hOutFile);
         return FALSE;
     }
 
     return FALSE;
 }
 
-BOOL ReadPEBProcessParameters(HANDLE hProcess, PEB* peb, WCHAR** args) {
+BOOL Process::ReadPEBProcessParameters(PEB* peb, WCHAR** args) {
 
     UNICODE_STRING commandLine;
     if (!ReadProcessMemory(hProcess, &peb->ProcessParameters->CommandLine, &commandLine, sizeof(commandLine), NULL))
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Could not read CommandLine!\n"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Could not read CommandLine!\n"), hOutFile);
         return FALSE;
     }
 
     *args = (WCHAR*)malloc(commandLine.MaximumLength);
     if (*args != 0 && !ReadProcessMemory(hProcess, commandLine.Buffer, *args, commandLine.MaximumLength, NULL))
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Could not read the command line string!\n"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Could not read the command line string!\n"), hOutFile);
         free(*args);
         return FALSE;
     }
@@ -137,12 +138,12 @@ BOOL ReadPEBProcessParameters(HANDLE hProcess, PEB* peb, WCHAR** args) {
     return TRUE;
 }
 
-BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
+BOOL Process::FindCorrectProcessPID(LPCWSTR processName, DWORD* pid)
 {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("CreateToolhelp32Snapshot failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("CreateToolhelp32Snapshot failed"), hOutFile);
         return FALSE;
     }
 
@@ -151,7 +152,7 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
 
     if (!Process32First(hProcessSnap, &pe32))
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Process32First failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Process32First failed"), hOutFile);
         CloseHandle(hProcessSnap);
         return(FALSE);
     }
@@ -165,21 +166,20 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
         if (wcscmp(pe32.szExeFile, processName) == 0)
         {
             PEB peb = { 0 };
-            HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
-            if (ReadRemoteProcessPEB(hHandle, &peb))
+            this->hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
+            if (ReadRemoteProcessPEB(&peb))
             {
                 WCHAR* commandLine{0};
-                if (ReadPEBProcessParameters(hHandle, &peb, &commandLine) && &commandLine != 0)
+                if (ReadPEBProcessParameters(&peb, &commandLine) && &commandLine != 0)
                 {
                     if (wcsstr(commandLine, flags) != 0)
                     {
-                        PRINTW(L"[+] Found browser process: %d\n", pe32.th32ProcessID);
-                        PRINTW(L"    Process owner: ");
-                        GetTokenUser(hHandle);
-                        PRINTW(L"\n\n");
+                        PRINTW(this->hOutFile, L"[+] Found browser process: %d\n", pe32.th32ProcessID);
+                        PRINTW(this->hOutFile, L"    Process owner: ");
+                        GetTokenUser(this->hProcess, this->hOutFile);
+                        PRINTW(this->hOutFile, L"\n\n");
 
                         *pid = pe32.th32ProcessID;
-                        *hProcess = hHandle;
                         free(commandLine);
                         CloseHandle(hProcessSnap);
                         return TRUE;
@@ -187,7 +187,6 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
                     free(commandLine);
                 }
             }
-            CloseHandle(hHandle);
         }
 
     } while (Process32Next(hProcessSnap, &pe32));
@@ -196,12 +195,12 @@ BOOL FindCorrectProcessPID(LPCWSTR processName, DWORD* pid, HANDLE* hProcess)
     return FALSE;
 }
 
-void FindAllSuitableProcesses(LPCWSTR processName)
+void Process::FindAllSuitableProcesses(LPCWSTR processName)
 {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("CreateToolhelp32Snapshot failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("CreateToolhelp32Snapshot failed"), hOutFile);
         return;
     }
 
@@ -210,7 +209,7 @@ void FindAllSuitableProcesses(LPCWSTR processName)
 
     if (!Process32First(hProcessSnap, &pe32))
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Process32First failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("Process32First failed"), hOutFile);
         CloseHandle(hProcessSnap);
         return;
     }
@@ -224,23 +223,22 @@ void FindAllSuitableProcesses(LPCWSTR processName)
         if (wcscmp(pe32.szExeFile, processName) == 0)
         {
             PEB peb = { 0 };
-            HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
-            if (ReadRemoteProcessPEB(hHandle, &peb))
+            this->hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
+            if (ReadRemoteProcessPEB(&peb))
             {
                 WCHAR* commandLine{ 0 };
-                if (ReadPEBProcessParameters(hHandle, &peb, &commandLine) && &commandLine != 0)
+                if (ReadPEBProcessParameters(&peb, &commandLine) && &commandLine != 0)
                 {
                     if (wcsstr(commandLine, flags) != 0)
                     {
-                        PRINTW(L"[+] Found browser process: %d\n", pe32.th32ProcessID);
-                        PRINTW(L"    Process owner: ");
-                        GetTokenUser(hHandle);
-                        PRINTW(L"\n\n");
+                        PRINTW(this->hOutFile, L"[+] Found browser process: %d\n", pe32.th32ProcessID);
+                        PRINTW(this->hOutFile, L"    Process owner: ");
+                        GetTokenUser(this->hProcess, this->hOutFile);
+                        PRINTW(this->hOutFile, L"\n\n");
                     }
                 }
                 free(commandLine);
             }
-            CloseHandle(hHandle);
         }
 
     } while (Process32Next(hProcessSnap, &pe32));
@@ -248,14 +246,14 @@ void FindAllSuitableProcesses(LPCWSTR processName)
     CloseHandle(hProcessSnap);
 }
 
-BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
+BOOL Process::GetRemoteModuleBaseAddress(const wchar_t* moduleName, uintptr_t& baseAddress, DWORD* moduleSize) {
 
     DWORD szModules = sizeof(HMODULE) * 1024; //Should be enough ;)
     HMODULE* hModules = (HMODULE*)malloc(szModules);
     DWORD cbNeeded;
 
     if (hModules == 0 || !EnumProcessModulesEx(hProcess, hModules, szModules, &cbNeeded, LIST_MODULES_ALL)) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("EnumProcessModulesEx failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("EnumProcessModulesEx failed"), hOutFile);
         free(hModules);
         return FALSE;
     }
@@ -263,13 +261,13 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
     for (int i = 0; i < (cbNeeded / sizeof(HMODULE)); ++i) {
         wchar_t szModuleName[MAX_PATH];
         if (GetModuleBaseName(hProcess, hModules[i], szModuleName, sizeof(szModuleName) / sizeof(wchar_t)) == 0) {
-            DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleBaseName failed"));
+            DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleBaseName failed"), hOutFile);
             continue;
         }
         if (_wcsicmp(szModuleName, moduleName) == 0) {
             MODULEINFO moduleInfo;
             if (!GetModuleInformation(hProcess, hModules[i], &moduleInfo, sizeof(moduleInfo))) {
-                DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleInformation failed"));
+                DEBUG_PRINT_ERROR_MESSAGE(TEXT("GetModuleInformation failed"), hOutFile);
                 free(hModules);
                 return FALSE;
             }
@@ -283,56 +281,54 @@ BOOL GetRemoteModuleBaseAddress(HANDLE hProcess, const wchar_t* moduleName, uint
     return FALSE;
 }
 
-BOOL GetProcessName(HANDLE hProcess, TargetVersion &targetBrowser) {
+BOOL Process::GetProcessName() {
 
     wchar_t processPath[MAX_PATH];
     DWORD size = sizeof(processPath) / sizeof(processPath[0]);
 
     // Query the full process image name
     if (!QueryFullProcessImageName(hProcess, 0, processPath, &size)) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("QueryFullProcessImageName failed to get target process name"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("QueryFullProcessImageName failed to get target process name"), hOutFile);
         return FALSE;
     }
 
     const wchar_t* executableName = PathFindFileName(processPath);
     if (wcscmp(executableName, L"chrome.exe") == 0)
     {
-        targetBrowser = Chrome;
+        this->targetConfig = Chrome;
         return TRUE;
     }
     if (wcscmp(executableName, L"msedge.exe") == 0)
     {
-        targetBrowser = Edge;
+        this->targetConfig = Edge;
         return TRUE;
     }
     if (wcscmp(executableName, L"msedgewebview2.exe") == 0)
     {
-        targetBrowser = Webview2;
+        this->targetConfig = Webview2;
         return TRUE;
     }
     return FALSE;
 }
 
-BOOL GetProcessHandle(DWORD pid, HANDLE* hProcess) {
+BOOL Process::GetProcessHandle(DWORD pid) {
     HANDLE hHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     if (hHandle == NULL || hHandle == INVALID_HANDLE_VALUE)
     {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("OpenProcess failed"));
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("OpenProcess failed"), hOutFile);
         return FALSE;
     }
-    *hProcess = hHandle;
+    this->hProcess = hHandle;
     return TRUE;
 }
 
-BOOL IsWow64(HANDLE hProcess) {
+BOOL Process::IsWow64() {
     BOOL isBrowserWow64 = FALSE;
     if (!IsWow64Process(hProcess, &isBrowserWow64)) {
-        DEBUG_PRINT_ERROR_MESSAGE(TEXT("IsWow64Process failed for browser process"));
-        CloseHandle(hProcess);
+        DEBUG_PRINT_ERROR_MESSAGE(TEXT("IsWow64Process failed for browser process"), hOutFile);
         return TRUE;
     }
     if (isBrowserWow64) {
-        CloseHandle(hProcess);
         return TRUE;
     }
 

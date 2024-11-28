@@ -1,10 +1,12 @@
 #pragma once
 
 void ConvertToByteArray(uintptr_t value, BYTE* byteArray, size_t size);
-void PrintErrorWithMessage(const wchar_t* buf);
+void PrintErrorWithMessage(const wchar_t* buf, HANDLE hFile);
+BOOL CreateOutputFile(char* dirPath, HANDLE* hFile);
+
 #ifdef _DEBUG
-void DebugPrint(const wchar_t* print);
-void DebugPrintErrorWithMessage(const wchar_t* buf);
+void DebugPrint(const wchar_t* print, HANDLE hFile);
+void DebugPrintErrorWithMessage(const wchar_t* buf, HANDLE hFile);
 #define DEBUG_PRINT_ERROR_MESSAGE(...) DebugPrintErrorWithMessage(__VA_ARGS__)
 #define DEBUG_PRINT(...) DebugPrint(__VA_ARGS__)
 #else
@@ -19,8 +21,8 @@ void DebugPrintErrorWithMessage(const wchar_t* buf);
 #define PRINTW(...) BeaconPrintf(__VA_ARGS__)
 #define SSCAN(...)
 #else
-void PrintMessageW(wchar_t const* const _Format, ...);
-void PrintMessageA(char const* const _Format, ...);
+void PrintMessageW(HANDLE hFile, const wchar_t* _Format, ...);
+void PrintMessageA(HANDLE hFile, const char* _Format, ...);
 int my_sscanf_s(const char* buffer, const char* format, ...);
 #define PRINTW(...) PrintMessageW(__VA_ARGS__)
 #define PRINT(...) PrintMessageA(__VA_ARGS__)
