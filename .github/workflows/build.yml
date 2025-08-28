@@ -50,7 +50,7 @@ jobs:
           cd CookieKatz-BOF && nmake all
           cd .. 
           mv x64\Release\* release\
-          cd CredentialKatz-BOF && nmake all
+          cd ElevationKatz-BOF && nmake all
           cd .. 
           mv x64\Release\* release\
       - name: ZipIt

