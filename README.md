@@ -11,6 +11,10 @@ CookieKatz has an exe, Beacon Object File, and minidump parser available. And fo
 CookieKatz has been completely revamped to use much more robust method for finding the cookies! New method supports older browser version as well.
 There is now new flag /inject implemented to CookieKatz to defeat the App-Bound Encryption on relevant browsers!
 
+I need a coffee, and my cats too!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1E716M78J)
+
 ## CookieKatz - Dump cookies directly from memory
 
 CookieKatz is a project that allows operators to dump cookies from Chrome, Edge or Msedgewebview2 directly from the process memory.
