@@ -1,81 +1,22 @@
 # ChromeKatz
 
 ChromeKatz is a solution for dumping sensitive information from memory of Chromium based browsers.
-As for now, ChromeKatz consists of two projects:
+As for now, ChromeKatz consists of three projects:
  1. CookieKatz - The cookie dumper
- 2. CredentialKatz - The password dumper
+ 2. CredentialKatz - Deprecated.. for now
+ 3. ElevationKatz - Get the decrpytion key from the elevation service
 
-Both tools have an exe, Beacon Object File, and minidump parser available.
+CookieKatz has an exe, Beacon Object File, and minidump parser available. And for the ElevationKatz executable and Beacon Object File.
 
 CookieKatz has been completely revamped to use much more robust method for finding the cookies! New method supports older browser version as well.
-
-## CredentialKatz - Dump credential manager contents from memory
-
-CredentialKatz is a project that allows operators to dump all credentials from Credential Manager of Chrome and Edge.
-Most of the time Chromium based browsers keep your passwords in the credential manager encrypted until they are needed, either viewed in the credential manager, or auto filled to a login form. But for whatever reason, `passwords_with_matching_reused_credentials_` of `PasswordReuseDetectorImpl` class is populated with all credentials from the credential manager, in **plain text**. This will include all credentials that you have added to the password manager locally. If you have logged in the browser with your account, this will also include all the passwords you have ever synced with that account. 
-
-There are few perks in accessing credentials in this way.:
- 1. Dump credentials of other user's browsers when running elevated
- 2. DPAPI keys not needed to decrypt the credentials
- 3. No need to touch on-disk database file
- 4. Parse credential manager offline from a minidump file
-
-This solution consists of three projects, **CredentialKatz** that is a PE executable, **CredentialKatz-BOF** the Beacon Object File version and **CredentialKatzMinidump** which is the minidump parser.
-
-## Usage
-
-NOTE! When choosing using PID to target, use commands /list or cookie-katz-find respectively to choose the right subprocess!
-
-### CredentialKatz
-
-```text
-Examples:
-.\CredentialKatz.exe
-    By default targets first available Chrome process
-.\CredentialKatz.exe /edge
-    Targets first available Edge process
-.\CredentialKatz.exe /pid:<pid>
-    Attempts to target given pid, expecting it to be Chrome
-.\CredentialKatz.exe /edge /pid:<pid>
-    Target the specified Edge process
-
-Flags:
-    /edge       Target current user Edge process
-    /pid        Attempt to dump given pid, for example, someone else's if running elevated
-    /list       List targettable processes, use with /edge to list Edge processes
-    /help       This what you just did! -h works as well
-```
-
-### CredentialKatz-BOF
-
-```text
-beacon> help credential-katz
-Dump credential manager from Chrome or Edge
-Use: credential-katz [chrome|edge] [pid]
-
-beacon> help cookie-katz-find
-Find processes for credential-katz
-Use: credential-katz-find [chrome|edge]
-```
-
-### CredentialKatzMinidump
-
-```text
-Usage:
-    CredentialKatzMinidump.exe <Path_to_minidump_file>
-
-Example:
-    .\CredentialKatzMinidump.exe .\msedge.DMP
-
-You need to dump the Chrome/Edge main process. Hint: It is the one with the smallest PID
-```
+There is now new flag /inject implemented to CookieKatz to defeat the App-Bound Encryption on relevant browsers!
 
 ## CookieKatz - Dump cookies directly from memory
 
 CookieKatz is a project that allows operators to dump cookies from Chrome, Edge or Msedgewebview2 directly from the process memory.
 Chromium based browsers load all their cookies from the on-disk cookie database on startup. 
 
-The benefits of this approach are:
+The benefits of this approach are*:
  1. Support dumping cookies from Chrome's Incogntio and Edge's In-Private processes
  1. Access cookies of other user's browsers when running elevated
  1. Dump cookies from webview processes
@@ -83,7 +24,9 @@ The benefits of this approach are:
  1. DPAPI keys not needed to decrypt the cookies
  1. Parse cookies offline from a minidump file
 
-On the negative side, even as the method of finding the correct offsets in the memory are currently stable and work on multiple different versions, it will definitely break at some point in the future.
+These statements are still true on some browsers/applications. For latest versions of Chrome you will need to inject into the process.
+    ... Our use the ElevationKatz
+
 32bit browser installations are not supported and 32bit builds of CookieKatz are not supported either.
 
 Currently only regular cookies are dumped. Chromium stores [Partitioned Cookies](https://developers.google.com/privacy-sandbox/3pcd/chips) in a different place and they are currently not included in the dump.
@@ -108,12 +51,19 @@ Examples:
     Targets the given msedgewebview2 process
 .\CookieKatz.exe /list /webview
     Lists available webview processes
+.\CookieKatz.exe /inject
+    Targets the current process. Use this flag when your are injecting CookieKatz to Chrome process.
+
+TIP! If you need to inject CookieKatz into the Chrome process, you can turn the exe into shellcode using donut:
+    .\donut.exe -a 2 --input <Path_to_CookieKatz.exe> -z 4 -b 1 -p "/inject" -t
 
 Flags:
     /edge       Target current user Edge process
     /webview    Target current user Msedgewebview2 process
     /pid        Attempt to dump given pid, for example, someone else's if running elevated
     /list       List targettable processes, use with /edge or /webview to target other browsers
+    /inject     Indicate that the process will run in the target process
+    /out        Write output to file, default location is "C:\Users\Public\Documents\cookies.log"
     /help       This what you just did! -h works as well
 ```
 
@@ -141,6 +91,58 @@ Example:
 To target correct process for creating the minidump, you can use the following PowerShell command:
     Get-WmiObject Win32_Process | where {$_.CommandLine -match 'network.mojom.NetworkService'} | select -Property Name,ProcessId
 ```
+
+## ElevationKatz - Dump profile database key from memory
+
+ElevationKatz lets operators to dump browser profile encryption key from memory to allow access for user's sensitive information.
+This works by starting a new browser process suspended, setting up break points and dumping the key once the browser process receives it from the elevator service.
+
+The benefits of this approach are:
+ 1. No admin access required
+ 1. No need to inject into other processes
+ 1. No writing files on disk
+
+ElevationKatz will start a new browser process in suspended state and attach a debugger to it. Then it will scan the browser dll to find the instruction where the browser returns from call to **os_crypt::DecryptAppBoundString** and setting a breakpoint immediately after. Once the breakpoint is hit, the tool will dump the encryption key from the memory.
+
+There are two breakpoint types which the operator may choose from: Software and Hardware breakpoints.
+* Software breakpoint works by patching the instruction in the memory and overwriting the old one. This obviously has the downside of using WIN API WriteProcessMemory.
+* Hardware breakpoints are set into registers of the executing thread directly. This avoids the use of WriteProcessMemory, but will require heavy use of pattern: OpenThread->SuspendThread->ResumeThread.
+
+Additionally for HW breakpoints, there are two supported ways for thread enumeration to choose from: NtGetNextThread and CreateToolhelp32Snapshot. SW breakpoints do not need thread enumeration and therefore the /tl32 flag does not affect it.
+
+### ElevationKatz
+
+```text
+Examples:
+.\ElevationKatz.exe /chrome
+    Starts a new chrome process using path: C:\Program Files\Google\Chrome\Application\chrome.exe
+.\ElevationKatz.exe /chrome /hw
+    Starts a new chrome process using path: C:\Program Files\Google\Chrome\Application\chrome.exe
+    Will use Hardware breakpoints instead of the sofware ones
+.\ElevationKatz.exe /edge
+    Starts a new chrome process using path: C:\Program Files(x86)\Microsoft\Edge\Application\msedge.exe
+.\ElevationKatz.exe /path:\"C:\Program Files\BraveSoftware\Brave - Browser\Application\brave.exe\" /module:chrome.dll
+    Targets the Brave browser
+
+Flags:
+    /chrome                Target Chrome process.
+    /edge                  Target Edge process.
+    /hw                    Use Harware breakpoints instead of SW ones.
+    /tl32                  Use CreateToolhelp32Snapshot to enumerate process threads when using with /HW flag
+    /path:<path_to_exe>    Provide path to the process executable
+    /module:<some.dll>     Provide alternative module to target
+    /help                  This what you just did! -h works as well
+```
+
+## CredentialKatz - Dump credential manager contents from memory
+
+### Deprecated
+
+I made a report for Chromium project about the bug that the CredentialKatz was originally exploiting and they marked it as "Won't fix" and said that they don't care if the credentials linger in the memory.
+
+Suddenly they did fix the bug in the exact way I proposed after the tool got published :3
+https://issues.chromium.org/issues/352085708
+
 
 # Build and Install
 

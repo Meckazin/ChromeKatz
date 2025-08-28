@@ -42,7 +42,7 @@ void usage(HANDLE hFile) {
     PRINT(hFile, "    /pid        Attempt to dump given pid, for example, someone else's if running elevated\n");
     PRINT(hFile, "    /list       List targettable processes, use with /edge or /webview to target other browsers\n");
     PRINT(hFile, "    /inject     Indicate that the process will run in the target process\n");
-    PRINT(hFile, "    /out        Write output to file, default location is \n");
+    PRINT(hFile, "    /out        Write output to file, default location is: C:\\Users\\Public\\Documents\\cookies.log \n");
     PRINT(hFile, "    /help       This what you just did! -h works as well\n");
 }
 
