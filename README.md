@@ -3,7 +3,7 @@
 ChromeKatz is a solution for dumping sensitive information from memory of Chromium based browsers.
 As for now, ChromeKatz consists of three projects:
  1. CookieKatz - The cookie dumper
- 2. CredentialKatz - Deprecated.. for now
+ 2. ~~CredentialKatz~~ - Deprecated.. for now
  3. ElevationKatz - Get the decrpytion key from the elevation service
 
 CookieKatz has an exe, Beacon Object File, and minidump parser available. And for the ElevationKatz executable and Beacon Object File.
@@ -11,7 +11,7 @@ CookieKatz has an exe, Beacon Object File, and minidump parser available. And fo
 CookieKatz has been completely revamped to use much more robust method for finding the cookies! New method supports older browser version as well.
 There is now new flag /inject implemented to CookieKatz to defeat the App-Bound Encryption on relevant browsers!
 
-I need a coffee, and my cats too!
+I need a coffee, and my cats need too!
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1E716M78J)
 
