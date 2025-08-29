@@ -120,19 +120,23 @@ Additionally for HW breakpoints, there are two supported ways for thread enumera
 Examples:
 .\ElevationKatz.exe /chrome
     Starts a new chrome process using path: C:\Program Files\Google\Chrome\Application\chrome.exe
+    Waits for 500 milliseconds for process to finish until forced shutdown.
 .\ElevationKatz.exe /chrome /hw
     Starts a new chrome process using path: C:\Program Files\Google\Chrome\Application\chrome.exe
-    Will use Hardware breakpoints instead of the sofware ones
-.\ElevationKatz.exe /edge
+    Will use Hardware breakpoints instead of the software ones
+    Waits for 500 milliseconds for process to finish until forced shutdown.
+.\ElevationKatz.exe /edge /wait:1000
     Starts a new chrome process using path: C:\Program Files(x86)\Microsoft\Edge\Application\msedge.exe
+    Waits for 1000 milliseconds for process to finish until forced shutdown.
 .\ElevationKatz.exe /path:\"C:\Program Files\BraveSoftware\Brave - Browser\Application\brave.exe\" /module:chrome.dll
     Targets the Brave browser
-
+    
 Flags:
     /chrome                Target Chrome process.
     /edge                  Target Edge process.
-    /hw                    Use Harware breakpoints instead of SW ones.
+    /hw                    Use Hardware breakpoints instead of SW ones.
     /tl32                  Use CreateToolhelp32Snapshot to enumerate process threads when using with /HW flag
+    /wait:<milliseconds>   Maximum time to for the debugging. Use 0 for INFINITE. Defaults to 500ms.
     /path:<path_to_exe>    Provide path to the process executable
     /module:<some.dll>     Provide alternative module to target
     /help                  This what you just did! -h works as well

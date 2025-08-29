@@ -622,7 +622,7 @@ void usage() {
     printf("    Waits for 500 milliseconds for process to finish until forced shutdown.\n");
     printf(".\\ElevationKatz.exe /chrome /hw\n");
     printf("    Starts a new chrome process using path: C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\n");
-    printf("    Will use Hardware breakpoints instead of the sofware ones\n");
+    printf("    Will use Hardware breakpoints instead of the software ones\n");
     printf("    Waits for 500 milliseconds for process to finish until forced shutdown.\n");
     printf(".\\ElevationKatz.exe /edge /wait:1000\n");
     printf("    Starts a new chrome process using path: C:\\Program Files(x86)\\Microsoft\\Edge\\Application\\msedge.exe\n");
@@ -632,7 +632,7 @@ void usage() {
     printf("Flags:\n");
     printf("    /chrome                Target Chrome process.\n");
     printf("    /edge                  Target Edge process.\n");
-    printf("    /hw                    Use Harware breakpoints instead of SW ones.\n");
+    printf("    /hw                    Use Hardware breakpoints instead of SW ones.\n");
     printf("    /tl32                  Use CreateToolhelp32Snapshot to enumerate process threads when using with /HW flag\n");
     printf("    /wait:<milliseconds>   Maximum time to for the debugging. Use 0 for INFINITE. Defaults to 500ms.\n");
     printf("    /path:<path_to_exe>    Provide path to the process executable\n");
