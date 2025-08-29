@@ -109,7 +109,7 @@ alias elevation-katz {
     # Either browser must be in acceptable values or
     # You must provide both executable path AND module name
     ($bid, $browser) = @_;
-    if ($browser !in @("chrome", "edge")) && ($executable is $null || $module is $null) {
+    if ($browser !in @("chrome", "edge") && ($executable is $null || $module is $null)) {
         berror($1, "Unsupported browser: '$browser $+ '");
         return;
     }

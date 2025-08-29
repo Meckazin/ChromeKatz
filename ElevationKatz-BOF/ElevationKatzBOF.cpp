@@ -37,8 +37,10 @@ extern "C" {
 
     DFR(KERNEL32, OpenThread);
     #define OpenThread KERNEL32$OpenThread
+    DFR(KERNEL32, GetThreadId)
+    #define GetThreadId KERNEL32$GetThreadId
     DFR(KERNEL32, SuspendThread)
-    #define SuspendTread KERNEL32$SuspendTread
+    #define SuspendThread KERNEL32$SuspendThread
     DFR(KERNEL32, ResumeThread);
     #define ResumeThread KERNEL32$ResumeThread
     DFR(KERNEL32, GetThreadContext)
@@ -65,6 +67,10 @@ extern "C" {
     #define Process32FirstW KERNEL32$Process32FirstW
     DFR(KERNEL32, Process32NextW)
     #define Process32NextW KERNEL32$Process32NextW
+    DFR(KERNEL32, Thread32First)
+    #define Thread32First KERNEL32$Thread32First
+    DFR(KERNEL32, Thread32Next)
+    #define Thread32Next KERNEL32$Thread32Next
 
     DFR(MSVCRT, _wcsicmp)
     #define _wcsicmp MSVCRT$_wcsicmp
