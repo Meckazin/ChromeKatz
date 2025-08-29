@@ -106,35 +106,51 @@ alias elevation-katz {
         return;
     }
 
-    # Check arguments
+    # Either browser must be in acceptable values or
+    # You must provide both executable path AND module name
     ($bid, $browser) = @_;
-    if ($browser !in @("chrome", "edge")) {
+    if ($browser !in @("chrome", "edge")) && ($executable is $null || $module is $null) {
         berror($1, "Unsupported browser: '$browser $+ '");
         return;
     }
 
+    # Setting default values for flags
     $terminate = [Integer parseInt: $terminateStr];
     if ($terminate is $null) {
-        berror($1, "Could not parse terminate '$terminateStr $+ '");
-        return;
+        $terminate = 0;
+    } else {
+        $terminate = 1;
     }
 
     $useHW = [Integer parseInt: $useHWStr];
     if ($useHW is $null) {
-        berror($1, "Could not parse useHW '$useHWStr $+ '");
-        return;
+        $useHW = 0;
+    } else {
+        $useHW = 1;
     }
 
     $useTL32 = [Integer parseInt: $useTL32Str];
     if ($useTL32 is $null) {
-        berror($1, "Could not parse useTL32 '$useTL32Str $+ '");
-        return;
+        $useTL32 = 0;
+    } else {
+        $useTL32 = 1;
     }
 
+    # in BOF the 0 is not accepteable. In executable it will map for INFINITY
+    # But we don't want to lose our beacon due to that. BOF has also checks for 0, but just in case...
     $wait = [Integer parseInt: $waitStr];
-    if ($wait is $null) {
-        berror($1, "Could not parse wait '$waitStr $+ '");
-        return;
+    if ($wait is $null || $wait == 0) {
+        $wait = 500;
+    } else {
+        $wait = $waitStr;
+    }
+
+    if ($executable is $null) {
+        $executable = "";
+    }
+
+    if ($module_name is $null) {
+        $module_name = "";
     }
 
     # Read the BOF
