@@ -37,8 +37,6 @@ extern "C" {
 
     DFR(KERNEL32, OpenThread);
     #define OpenThread KERNEL32$OpenThread
-    DFR(KERNEL32, SuspendThread)
-    #define SuspendThread KERNEL32$SuspendThread
     DFR(KERNEL32, ResumeThread);
     #define ResumeThread KERNEL32$ResumeThread
     DFR(KERNEL32, GetThreadContext)
