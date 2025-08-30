@@ -22,8 +22,8 @@ beacon_command_register(
 beacon_command_register(
    "elevation-katz",
    "Dump elevation service encryption key",
-   "Dump elevation service encryption key\n\nUse: elevation-katz [chrome|edge] [terminate] [useHW] [useTL32] [wait] [executable:<path>] [module:<path>]",
-   "cookie-katz"
+   "Dump elevation service encryption key\n\nUse: elevation-katz [chrome|edge] [useHW] [useTL32] [wait:<ms>] [terminate] [executable:<path>] [module:<path>]",
+   "elevation-katz"
 );
 
 
@@ -148,7 +148,7 @@ sub parse_elevation_args {
 alias elevation-katz {
     local('$bid %cmd_args $handle $data $args $path');
     if (size(@_) < 2) {
-        berror($1, "Use: [chrome|edge] [terminate] [useHW] [useTL32] [wait] [executable:<path>] [module:<path>]");
+        berror($1, "Use: [chrome|edge] [useHW] [useTL32] [wait:<ms>] [terminate] [executable:<path>] [module:<path>]");
         return;
     }
     else if (barch($1) eq "x86") {

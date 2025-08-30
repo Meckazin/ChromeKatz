@@ -4,7 +4,7 @@ ChromeKatz is a solution for dumping sensitive information from memory of Chromi
 As for now, ChromeKatz consists of three projects:
  1. CookieKatz - The cookie dumper
  2. ~~CredentialKatz~~ - Deprecated.. for now
- 3. ElevationKatz - Get the decrpytion key from the elevation service
+ 3. ElevationKatz - Get the decryption key from the elevation service
 
 CookieKatz has an exe, Beacon Object File, and minidump parser available. And for the ElevationKatz executable and Beacon Object File.
 
@@ -140,6 +140,15 @@ Flags:
     /path:<path_to_exe>    Provide path to the process executable
     /module:<some.dll>     Provide alternative module to target
     /help                  This what you just did! -h works as well
+```
+
+### ElevationKatz-BOF
+
+```text
+beacon> help elevation-katz
+Dump elevation service encryption key
+
+Use: elevation-katz [chrome|edge] [useHW] [useTL32] [wait:<ms>] [terminate] [executable:<path>] [module:<path>]
 ```
 
 ## CredentialKatz - Dump credential manager contents from memory
