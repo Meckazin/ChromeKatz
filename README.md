@@ -105,6 +105,7 @@ The benefits of this approach are:
  1. No admin access required
  1. No need to inject into other processes
  1. No writing files on disk
+ 1. No need to touch the on-disk profile databases
 
 ElevationKatz will start a new browser process in suspended state and attach a debugger to it. Then it will scan the browser dll to find the instruction where the browser returns from call to **os_crypt::DecryptAppBoundString** and setting a breakpoint immediately after. Once the breakpoint is hit, the tool will dump the encryption key from the memory.
 
@@ -125,6 +126,10 @@ Examples:
     Starts a new chrome process using path: C:\Program Files\Google\Chrome\Application\chrome.exe
     Will use Hardware breakpoints instead of the software ones
     Waits for 500 milliseconds for process to finish until forced shutdown.
+.\ElevationKatz.exe /chrome /config:all\n");
+    Starts a new chrome process using path: C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe
+    Will use Hardware breakpoints instead of the software ones
+    Parses the cookie and credential database from the browser memory and dumps them
 .\ElevationKatz.exe /edge /wait:1000
     Starts a new chrome process using path: C:\Program Files(x86)\Microsoft\Edge\Application\msedge.exe
     Waits for 1000 milliseconds for process to finish until forced shutdown.
@@ -139,6 +144,7 @@ Flags:
     /wait:<milliseconds>   Maximum time to for the debugging. Use 0 for INFINITE. Defaults to 500ms.
     /path:<path_to_exe>    Provide path to the process executable
     /module:<some.dll>     Provide alternative module to target
+    /config:<option>       Automatically locate and dump contents of profile databases. Options. Cookies|Creds|All
     /help                  This what you just did! -h works as well
 ```
 
