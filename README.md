@@ -8,6 +8,8 @@ As for now, ChromeKatz consists of three projects:
 
 CookieKatz has an exe, Beacon Object File, and minidump parser available. And for the ElevationKatz executable and Beacon Object File.
 
+ElevationKatz is now capable of parsing the cookie and credentials databases from the browser memory and decrypting them for you. 
+
 CookieKatz has been completely revamped to use much more robust method for finding the cookies! New method supports older browser version as well.
 There is now new flag /inject implemented to CookieKatz to defeat the App-Bound Encryption on relevant browsers!
 
@@ -115,6 +117,10 @@ There are two breakpoint types which the operator may choose from: Software and 
 
 Additionally for HW breakpoints, there are two supported ways for thread enumeration to choose from: NtGetNextThread and CreateToolhelp32Snapshot. SW breakpoints do not need thread enumeration and therefore the /tl32 flag does not affect it.
 
+New **config** parameter may be used to automatically decrypt the profile databases. This utilises [IHack4Falafel's](https://github.com/ihack4falafel) technique to parse the **Cookie** and **Login Profile** databases from the browser memory, avoiding touching the files directly.
+
+**Note** dumping only works with the HW Breakpoints as I couldn't figure out how to properly cleanup the SW Breakpoints and rewind RIP to avoid the process crashing. 
+
 ### ElevationKatz
 
 ```text
@@ -184,6 +190,7 @@ nmake all
 
 ## Credits
 - [Henkru](https://github.com/Henkru) for fixing the BOF version crashes and creating the CNA script
+- [IHack4Falafel](https://github.com/ihack4falafel) for the cool trick to parse the profile DBs from the browser memory
 - [B3arr0](https://github.com/B3arr0) for testing the BOF version and helping to squash the bugs
 - [TheWover](https://github.com/TheWover) for excellent PEB definitions!
 - [0vercl0k](https://github.com/0vercl0k) for creating udmp-parser which is the core library for minidump parsing
