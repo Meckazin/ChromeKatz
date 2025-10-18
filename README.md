@@ -31,7 +31,7 @@ The benefits of this approach are*:
  1. Parse cookies offline from a minidump file
 
 These statements are still true on some browsers/applications. For latest versions of Chrome you will need to inject into the process.
-    ... Our use the ElevationKatz
+    ... Or use the ElevationKatz
 
 32bit browser installations are not supported and 32bit builds of CookieKatz are not supported either.
 
